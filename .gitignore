@@ -1,0 +1,42 @@
+# --- Secrets & local env (NEVER commit) ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# --- Rust / backend ---
+/backend/target/
+**/*.rs.bk
+
+# --- Node / frontend ---
+node_modules/
+/frontend/dist/
+/frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Python (offline ML / geo tooling) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# --- Geo / data artifacts (large, regenerated) ---
+*.tif
+*.tiff
+*.geotiff
+*.mbtiles
+/data/
+/tiles/
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp

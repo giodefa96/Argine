@@ -1,0 +1,29 @@
+name: Dependency Review
+
+# Runs ONLY on pull requests. Diffs the dependency manifests/lockfiles and
+# blocks the PR if it introduces a dependency that is vulnerable or has a
+# disallowed license — i.e. it vets new dependencies *before* they get merged
+# (and before they ever get installed on main).
+#
+# Note: requires the repository's Dependency Graph to be enabled.
+# Free for public repos; needs GitHub Advanced Security for private repos.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # to leave a summary comment on the PR
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+          # Block copyleft licenses that we don't want to ship with; tune to taste.
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0

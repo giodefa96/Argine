@@ -1,0 +1,47 @@
+# cargo-deny configuration — dependency security & supply-chain policy.
+# Run locally with:  cargo install cargo-deny && cargo deny check
+# CI runs this via .github/workflows/security.yml
+
+[advisories]
+# RustSec advisory database: fail on known vulnerabilities & unmaintained crates.
+version = 2
+yanked = "deny"
+# Add advisory IDs here ONLY with a justification + review date if you must ignore one.
+ignore = []
+
+[licenses]
+version = 2
+# Permissive licenses we are happy to ship. Anything not listed fails the build,
+# forcing a conscious decision before a new license enters the dependency tree.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+]
+confidence-threshold = 0.9
+# Per-crate license clarifications go here if a crate's license is ambiguous.
+exceptions = []
+
+[bans]
+# Catch dependency bloat / supply-chain risk from duplicated or unwanted crates.
+multiple-versions = "warn"
+wildcard-dependencies = "deny"
+# Example of banning a specific crate:
+# deny = [{ name = "openssl", reason = "prefer rustls" }]
+deny = []
+
+[sources]
+# Only allow dependencies from trusted sources. Anything from an unknown registry
+# or git host fails — this is the "vet before pulling it in" guard for the backend.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

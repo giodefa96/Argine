@@ -1,0 +1,68 @@
+name: CodeQL
+
+# Static analysis security testing (SAST). Scans source for vulnerability
+# patterns (injection, unsafe deserialization, etc.). Self-skips per language
+# until that part of the project exists.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "27 3 * * 1" # weekly, Monday 03:27 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+      frontend: ${{ steps.f.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: f
+        run: |
+          test -f backend/Cargo.toml && echo "backend=true" >> "$GITHUB_OUTPUT" || echo "backend=false" >> "$GITHUB_OUTPUT"
+          test -f frontend/package.json && echo "frontend=true" >> "$GITHUB_OUTPUT" || echo "frontend=false" >> "$GITHUB_OUTPUT"
+
+  analyze:
+    needs: detect
+    if: needs.detect.outputs.backend == 'true' || needs.detect.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # upload results to the Security tab
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, rust]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Skip a language whose code isn't present yet.
+      - name: Should analyze ${{ matrix.language }}?
+        id: gate
+        run: |
+          if [ "${{ matrix.language }}" = "rust" ]; then
+            echo "run=${{ needs.detect.outputs.backend }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=${{ needs.detect.outputs.frontend }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Initialize CodeQL
+        if: steps.gate.outputs.run == 'true'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        if: steps.gate.outputs.run == 'true'
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        if: steps.gate.outputs.run == 'true'
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

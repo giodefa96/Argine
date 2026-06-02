@@ -1,0 +1,100 @@
+name: Security
+
+# Mandatory security gate. Runs on every PR and on pushes to main.
+# Jobs self-skip until the relevant code exists (backend/ , frontend/),
+# so the workflow stays green on a docs-only repo and activates automatically
+# once the Rust backend / React frontend land.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Detect which parts of the project exist yet, so downstream jobs can skip.
+  # ---------------------------------------------------------------------------
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+      frontend: ${{ steps.f.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: f
+        run: |
+          if [ -f backend/Cargo.toml ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::backend/Cargo.toml not found — Rust security checks will skip."
+          fi
+          if [ -f frontend/package.json ]; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::frontend/package.json not found — frontend security checks will skip."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Backend (Rust): advisories + licenses + banned crates + allowed sources.
+  # cargo-deny is a superset of cargo-audit (it also checks licenses & sources,
+  # which is the "vet a dependency before pulling it in" part).
+  # ---------------------------------------------------------------------------
+  backend-security:
+    needs: detect
+    if: needs.detect.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: backend/Cargo.toml
+          # checks: advisories (RustSec), bans, licenses, sources — see backend/deny.toml
+          command: check advisories bans licenses sources
+
+  # ---------------------------------------------------------------------------
+  # Frontend (React/TS): npm audit, fail on high/critical.
+  # ---------------------------------------------------------------------------
+  frontend-security:
+    needs: detect
+    if: needs.detect.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (no scripts, exact lockfile)
+        run: npm ci --ignore-scripts
+      - name: npm audit (fail on high/critical)
+        run: npm audit --audit-level=high
+
+  # ---------------------------------------------------------------------------
+  # Secret scanning: catch committed credentials, tokens, keys.
+  # Runs always (independent of code existing).
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so gitleaks can scan all commits
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Free for public repos / individuals. For an org, set GITLEAKS_LICENSE secret.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
