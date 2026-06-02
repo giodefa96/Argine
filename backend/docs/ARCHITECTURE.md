@@ -36,6 +36,14 @@ Read from environment (see [`features/config-and-startup.md`](./features/config-
 - Multi-stage `Dockerfile` → **distroless, non-root** runtime image (SECURITY.md §10).
 - Dependency lockfile (`Cargo.lock`) committed; built with `--locked`.
 
+## Testing
+- **Unit tests** live next to the code (`#[cfg(test)]`); see `src/config.rs` for the
+  security-critical validation tests.
+- **Integration tests** in `tests/` exercise the router in-process via `tower`'s `oneshot`
+  (no network bind) — see `tests/health.rs`.
+- Run with `cargo test` (or `make test-backend`). Coverage via `cargo llvm-cov` in CI.
+- External APIs (ARPA, Open-Meteo) must be mocked (`wiremock`) — never called in tests.
+
 ## Planned components (not yet implemented)
 Tracked in [`IDEAS.md`](../../IDEAS.md); each will get a `features/` doc when built:
 - Persistence: `sqlx` + PostgreSQL/**TimescaleDB**.

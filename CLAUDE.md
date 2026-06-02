@@ -55,10 +55,30 @@ This project is security-by-design. When writing or reviewing code, these are ha
   `cargo-vet` + sandboxed builds.
 - **Keep secrets OUT of the build shell environment** — build scripts inherit env vars.
 
+## Testing & quality (mandatory per feature)
+Every feature ships with tests, as exhaustive as the risk warrants (don't chase coverage %
+on trivial code; test the risky logic hard: forecast model, alert thresholds, flood mapping,
+auth, config/security paths).
+- **Backend:** `cargo test` — unit (`#[cfg(test)]`) + integration (`tests/`, router via
+  `oneshot`). External APIs (ARPA/Open-Meteo) must be mocked (`wiremock`), never called in CI.
+- **Frontend:** **Vitest** + Testing Library for components; **Playwright** for E2E on
+  **critical journeys only**. Mock the backend (MSW) — no real API calls in tests.
+- **Coverage:** no-drop ratchet (Codecov `project: auto`); coverage may hold or rise, not fall.
+- **Lint/format:** Rust `fmt`+`clippy -D warnings`; frontend ESLint + Prettier; Python
+  (geo/ML) `ruff` + `mypy`. All enforced by pre-commit and CI.
+- **CI is staged:** fast lint+unit first, then E2E (see `.github/workflows/test.yml`).
+
+## Definition of Done (per feature)
+Code **+** tests **+** `docs/features/<name>.md` and `ARCHITECTURE.md` updated **+** all gates
+green (security + lint + tests). A PR missing any of these is not done.
+
 ## Developer commands
-- `make hooks` — install local git hooks (pre-commit secret scan + pre-push checks).
-- `make security` — run the full local security gate (mirrors CI: `cargo-deny`, `npm audit`, gitleaks).
-- CI security workflows live in `.github/workflows/` and run on every PR.
+- `make hooks` — install local git hooks (pre-commit + pre-push: secrets, lint, format, tests).
+- `make security` — local security gate (`cargo-deny`, `pnpm audit`, gitleaks).
+- `make lint` — fmt/clippy + eslint/prettier checks.
+- `make test` — backend + frontend unit/integration tests. `make e2e` — Playwright.
+- CI workflows in `.github/workflows/` run on every PR: `security.yml`, `test.yml`,
+  `dependency-review.yml`, `codeql.yml`, `claude-review.yml`.
 
 ---
 

@@ -174,6 +174,7 @@ status checks** in branch protection, so nothing merges without passing them.
 | `security.yml` | **Backend**: `cargo-deny` (RustSec advisories + license allowlist + banned crates + trusted sources, configured in [`backend/deny.toml`](./backend/deny.toml)). **Frontend**: `pnpm audit` (fail on high/critical). **Repo**: `gitleaks` secret scanning. |
 | `dependency-review.yml` | On PRs only: vets **newly introduced** dependencies, blocking vulnerable ones or disallowed licenses **before they are merged/installed**. |
 | `codeql.yml` | SAST for Rust and JS/TS (PR + push + weekly schedule). |
+| `test.yml` | Staged quality/correctness: lint + unit/integration tests, then E2E. Not a security workflow but runs the same gate (coverage no-drop via Codecov). |
 | `claude-review.yml` | AI agent review of the PR diff (advisory; auth via Claude Pro/Max OAuth token in secret `CLAUDE_CODE_OAUTH_TOKEN`, generated with `claude setup-token`). |
 
 ### Supply-chain vulnerability databases consulted
@@ -207,10 +208,12 @@ secret is committed and pushed it must be considered leaked (rotate it) even if 
 - Managed with the [`pre-commit`](https://pre-commit.com/) framework — config in
   [`.pre-commit-config.yaml`](./.pre-commit-config.yaml). Install with `make hooks`.
 - **pre-commit stage** (fast, every commit): `gitleaks` secret scan, private-key detection,
-  large-file / merge-conflict checks, `cargo fmt --check`.
-- **pre-push stage** (heavier, before push): `cargo clippy -D warnings`, `cargo deny check`,
-  `npm audit` — the same checks CI runs, so failures are caught before the PR exists.
-- Run the whole gate on demand: `make security`.
+  hygiene checks, `cargo fmt --check`, frontend ESLint + Prettier, Python `ruff` (lint+format,
+  inert until `.py` files exist).
+- **pre-push stage** (heavier, before push): `cargo clippy -D warnings`, `cargo test`,
+  `cargo deny check`, frontend `tsc --noEmit` + `vitest` + `pnpm audit`, Python `mypy` —
+  the same checks CI runs, so failures are caught before the PR exists.
+- Run on demand: `make security` (security gate), `make lint`, `make test`.
 
 ## 13. Supply-chain defense at install/build time
 

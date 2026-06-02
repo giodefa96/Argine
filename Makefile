@@ -1,6 +1,7 @@
-# Argine — developer entry points. Local security gate mirrors CI.
+# Argine — developer entry points. Local gates mirror CI.
 .DEFAULT_GOAL := help
-.PHONY: help hooks security secrets backend-security frontend-security
+.PHONY: help hooks security secrets backend-security frontend-security \
+        test test-backend test-frontend e2e lint
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -34,3 +35,23 @@ frontend-security: ## Frontend dependency audit (pnpm audit)
 	else \
 		echo "ℹ️  no frontend/package.json yet — skipping frontend security"; \
 	fi
+
+test: test-backend test-frontend ## Run backend + frontend unit/integration tests
+	@echo "✅ tests passed"
+
+test-backend: ## Rust unit + integration tests
+	@if [ -f backend/Cargo.toml ]; then cd backend && cargo test; \
+	else echo "ℹ️  no backend yet — skipping"; fi
+
+test-frontend: ## Frontend unit tests (vitest)
+	@if [ -f frontend/package.json ]; then cd frontend && pnpm test; \
+	else echo "ℹ️  no frontend yet — skipping"; fi
+
+e2e: ## Frontend end-to-end tests (Playwright, critical journeys)
+	@if [ -f frontend/package.json ]; then cd frontend && pnpm test:e2e; \
+	else echo "ℹ️  no frontend yet — skipping"; fi
+
+lint: ## Lint + format check (Rust fmt/clippy, frontend eslint/prettier)
+	@if [ -f backend/Cargo.toml ]; then cd backend && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings; fi
+	@if [ -f frontend/package.json ]; then cd frontend && pnpm lint && pnpm format:check; fi
+	@echo "✅ lint passed"

@@ -80,3 +80,58 @@ impl Config {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config_with(environment: Environment, secret: &str) -> Config {
+        Config {
+            environment,
+            bind_addr: "0.0.0.0:8080".to_string(),
+            secret_key: secret.to_string(),
+            cors_origins: vec![],
+        }
+    }
+
+    #[test]
+    fn parse_known_environments() {
+        assert_eq!(Environment::parse("local").unwrap(), Environment::Local);
+        assert_eq!(Environment::parse("staging").unwrap(), Environment::Staging);
+        assert_eq!(
+            Environment::parse("production").unwrap(),
+            Environment::Production
+        );
+    }
+
+    #[test]
+    fn parse_unknown_environment_is_error() {
+        // fail-closed: a typo must not silently become Local
+        assert!(matches!(
+            Environment::parse("prod"),
+            Err(ConfigError::UnknownEnvironment(_))
+        ));
+    }
+
+    #[test]
+    fn default_secret_allowed_only_in_local() {
+        assert!(config_with(Environment::Local, PLACEHOLDER)
+            .validate()
+            .is_ok());
+        assert!(matches!(
+            config_with(Environment::Production, PLACEHOLDER).validate(),
+            Err(ConfigError::DefaultSecret(_))
+        ));
+        assert!(matches!(
+            config_with(Environment::Staging, PLACEHOLDER).validate(),
+            Err(ConfigError::DefaultSecret(_))
+        ));
+    }
+
+    #[test]
+    fn real_secret_ok_in_production() {
+        assert!(config_with(Environment::Production, "a-real-secret")
+            .validate()
+            .is_ok());
+    }
+}

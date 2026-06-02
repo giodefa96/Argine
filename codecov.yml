@@ -1,0 +1,28 @@
+# Coverage policy: no-drop ratchet.
+# `project.target: auto` compares each PR against the base commit and fails if total
+# coverage drops (beyond a small noise threshold) — i.e. coverage can only hold or rise.
+# Activation: connect the repo on codecov.io and add the CODECOV_TOKEN secret; until then
+# the test workflow still runs and prints coverage, but this status is not enforced.
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0.5%
+    patch:
+      default:
+        target: 80%
+        threshold: 0%
+
+comment:
+  layout: "reach, diff, flags"
+  require_changes: true
+
+flags:
+  backend:
+    paths:
+      - backend/
+  frontend:
+    paths:
+      - frontend/
