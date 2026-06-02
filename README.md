@@ -24,3 +24,7 @@ ARPA Lombardia (hydrometry) · Open-Meteo (rain forecast) · PGRA/PAI + DTM (flo
 make hooks     # install local git hooks (secret scan + pre-push checks)
 make security  # run the full local security gate (mirrors CI)
 ```
+
+## License
+[AGPL-3.0](./LICENSE) — strong copyleft with a network-use clause: anyone who runs a
+modified version as a network service must make the source available.
