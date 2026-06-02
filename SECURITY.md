@@ -174,7 +174,7 @@ status checks** in branch protection, so nothing merges without passing them.
 | `security.yml` | **Backend**: `cargo-deny` (RustSec advisories + license allowlist + banned crates + trusted sources, configured in [`backend/deny.toml`](./backend/deny.toml)). **Frontend**: `pnpm audit` (fail on high/critical). **Repo**: `gitleaks` secret scanning. |
 | `dependency-review.yml` | On PRs only: vets **newly introduced** dependencies, blocking vulnerable ones or disallowed licenses **before they are merged/installed**. |
 | `codeql.yml` | SAST for Rust and JS/TS (PR + push + weekly schedule). |
-| `claude-review.yml` | AI agent review of the PR diff (advisory; needs `ANTHROPIC_API_KEY` secret). |
+| `claude-review.yml` | AI agent review of the PR diff (advisory; auth via Claude Pro/Max OAuth token in secret `CLAUDE_CODE_OAUTH_TOKEN`, generated with `claude setup-token`). |
 
 ### Supply-chain vulnerability databases consulted
 Dependencies are cross-referenced against live, online advisory databases at multiple points:
