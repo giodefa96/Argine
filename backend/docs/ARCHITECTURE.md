@@ -8,19 +8,27 @@ components are marked as such.
 1. Initialize tracing (`tracing_subscriber::fmt` + `EnvFilter`, default `info`).
 2. Load and validate configuration — `Config::from_env()` (`src/config.rs`). **Fails fast**
    if a secret is still the placeholder in non-local environments.
-3. Build the Axum `Router`: routes + CORS layer + `TraceLayer`.
-4. Bind `TcpListener` on `BIND_ADDR` and `axum::serve`.
+3. Connect the `PgPool` and run migrations (`sqlx::migrate!()`).
+4. Build the Axum `Router` with `AppState`: routes + CORS layer + `TraceLayer`.
+5. Bind `TcpListener` on `BIND_ADDR` and `axum::serve`.
 
 ## Modules
 | Module | File | Responsibility |
 |--------|------|----------------|
-| entry  | `src/main.rs`   | wiring: tracing, router, server |
+| entry  | `src/main.rs`   | wiring: tracing, pool, migrations, router, server |
+| lib    | `src/lib.rs`    | `AppState`, `router()`, handlers |
 | config | `src/config.rs` | env-driven config + startup validation |
 
 ## HTTP surface (current)
 | Method | Path      | Handler  | Description |
 |--------|-----------|----------|-------------|
-| GET    | `/health` | `health` | liveness probe → `{"status":"ok"}` |
+| GET    | `/health` | `health` | liveness probe → `{"status":"ok"}` (no dependencies) |
+| GET    | `/ready`  | `ready`  | readiness → `200 {"status":"ready"}` if DB reachable, else `503` |
+
+## Persistence
+PostgreSQL + **TimescaleDB** via `sqlx::PgPool` (shared in `AppState`). Migrations in
+`backend/migrations/`, embedded by `sqlx::migrate!()` and applied at startup. See
+[`features/persistence.md`](./features/persistence.md).
 
 ## Configuration
 Read from environment (see [`features/config-and-startup.md`](./features/config-and-startup.md)):
@@ -30,6 +38,7 @@ Read from environment (see [`features/config-and-startup.md`](./features/config-
 | `ENVIRONMENT` | `local` | `local` \| `staging` \| `production` |
 | `BIND_ADDR` | `0.0.0.0:8080` | listen address |
 | `SECRET_KEY` | `changethis` | **must** be changed in non-local envs (fail-fast) |
+| `DATABASE_URL` | `postgres://argine:changethis@localhost:5432/argine` | DB connection; `changethis` password rejected outside `local` |
 | `CORS_ORIGINS` | _(empty)_ | comma-separated explicit allowlist |
 
 ## Runtime / deploy
@@ -46,18 +55,32 @@ Read from environment (see [`features/config-and-startup.md`](./features/config-
 
 ## Planned components (not yet implemented)
 Tracked in [`IDEAS.md`](../../IDEAS.md); each will get a `features/` doc when built:
-- Persistence: `sqlx` + PostgreSQL/**TimescaleDB**.
 - Ingestion scheduler (`tokio-cron-scheduler`): ARPA hydrometry + Open-Meteo.
 - Forecast engine: baseline (lag-based) → ML inference via **ONNX** (`ort`/`tract`).
 - Alert engine + notification channels (SSE, Telegram, Web Push).
 - Auth (JWT + Argon2) for admin/write endpoints.
 
-## Diagram
+## Startup sequence
+```mermaid
+flowchart TD
+    A[env vars] --> B[Config::from_env]
+    B -->|validate, fail-fast on default secrets| C{valid?}
+    C -->|no| X[exit non-zero]
+    C -->|yes| D[connect PgPool]
+    D --> E["sqlx::migrate!().run()"]
+    E --> F[build Router with AppState]
+    F --> G["axum::serve(BIND_ADDR)"]
+    F --> H["GET /health (liveness)"]
+    F --> I["GET /ready (DB readiness)"]
+    F --> J[CorsLayer allowlist + TraceLayer]
 ```
-env vars ──▶ Config::from_env ──(validate, fail-fast)──▶ Router
-                                                          ├─ GET /health
-                                                          ├─ CorsLayer (allowlist)
-                                                          └─ TraceLayer
-                                                              │
-                                                        axum::serve(BIND_ADDR)
+
+## Request → data flow (current)
+```mermaid
+flowchart LR
+    client[Client] -->|GET /health| live[health handler]
+    client -->|GET /ready| ready[ready handler]
+    ready -->|SELECT 1| db[(PostgreSQL / TimescaleDB)]
+    live --> client
+    ready --> client
 ```

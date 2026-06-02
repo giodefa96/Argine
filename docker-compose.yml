@@ -1,0 +1,35 @@
+# Local development stack. Secrets come from the environment / a local .env file
+# (see .env.example); nothing secret is committed. Override POSTGRES_PASSWORD & SECRET_KEY.
+
+services:
+  db:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: argine
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis}
+      POSTGRES_DB: argine
+    ports:
+      - "5432:5432"
+    volumes:
+      - argine-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U argine -d argine"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      BIND_ADDR: 0.0.0.0:8080
+      SECRET_KEY: ${SECRET_KEY:-changethis}
+      DATABASE_URL: postgres://argine:${POSTGRES_PASSWORD:-changethis}@db:5432/argine
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  argine-db:

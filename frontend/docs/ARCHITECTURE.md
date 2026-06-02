@@ -26,9 +26,10 @@ tracks the _implemented_ structure; planned pieces are marked as such.
 
 ## Entry flow
 
-```
-index.html ──▶ src/main.tsx ──▶ <App/>
-   (#root)        createRoot + StrictMode
+```mermaid
+flowchart LR
+    html["index.html (#root)"] --> main["src/main.tsx<br/>createRoot + StrictMode"]
+    main --> app["&lt;App /&gt;"]
 ```
 
 ## Structure (current)

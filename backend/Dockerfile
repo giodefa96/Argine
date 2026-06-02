@@ -12,6 +12,8 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs \
     && rm -rf src
 
 COPY src ./src
+# migrations/ is embedded at compile time by sqlx::migrate!(), so it must be present here.
+COPY migrations ./migrations
 # Touch so cargo rebuilds with the real sources.
 RUN touch src/main.rs && cargo build --release --locked
 
