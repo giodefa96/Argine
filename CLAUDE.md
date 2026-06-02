@@ -31,6 +31,11 @@ SECURITY.md     security baseline + checklist   Makefile    dev entry points
 ### Conventions
 - Documentation and code comments in **English**.
 - Data sources: ARPA Lombardia (hydrometry), Open-Meteo (rain forecast), PGRA/PAI + DTM (geo).
+- **Docs are mandatory and live next to the code.** `backend/docs/` and `frontend/docs/` are
+  the low-level source of truth: each holds an `ARCHITECTURE.md` plus a `features/<name>.md`
+  per feature (template in each `docs/README.md`). **Every PR that adds or changes a feature
+  must add/update its `features/` doc and `ARCHITECTURE.md` in the same PR** — docs drift is
+  treated as a bug. From `docs/` alone one should understand the whole project.
 
 ## Security is non-negotiable — read [`SECURITY.md`](./SECURITY.md)
 
@@ -43,9 +48,11 @@ This project is security-by-design. When writing or reviewing code, these are ha
 - **Auth:** JWT (`jsonwebtoken`, `exp` validated) + Argon2id passwords (`argon2`). Public read
   endpoints stay open; gate only writes, admin, and subscriber data.
 - **CORS:** explicit allowlist, never `Any` in production.
-- **Supply chain:** install/build with the lockfile (`cargo build --locked`, `npm ci` — never
-  `npm install`). New deps must pass `cargo-deny`/dependency-review. Assume dependency code
-  runs at build time; prefer `cargo-vet` + sandboxed builds.
+- **Supply chain:** install/build with the lockfile (`cargo build --locked`; frontend uses
+  **pnpm** — `pnpm install --frozen-lockfile`, never `npm install`). pnpm blocks install
+  scripts by default; allowlist in `frontend/pnpm-workspace.yaml`. New deps must pass
+  `cargo-deny`/dependency-review. Assume dependency code runs at build time; prefer
+  `cargo-vet` + sandboxed builds.
 - **Keep secrets OUT of the build shell environment** — build scripts inherit env vars.
 
 ## Developer commands

@@ -73,15 +73,18 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install (no scripts, exact lockfile)
-        run: npm ci --ignore-scripts
-      - name: npm audit (fail on high/critical)
-        run: npm audit --audit-level=high
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install (frozen lockfile, no scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: pnpm audit (fail on high/critical)
+        run: pnpm audit --audit-level high
 
   # ---------------------------------------------------------------------------
   # Secret scanning: catch committed credentials, tokens, keys.

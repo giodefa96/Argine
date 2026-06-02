@@ -171,18 +171,32 @@ status checks** in branch protection, so nothing merges without passing them.
 
 | Workflow | What it checks |
 |---|---|
-| `security.yml` | **Backend**: `cargo-deny` (RustSec advisories + license allowlist + banned crates + trusted sources, configured in [`backend/deny.toml`](./backend/deny.toml)). **Frontend**: `npm audit` (fail on high/critical). **Repo**: `gitleaks` secret scanning. |
+| `security.yml` | **Backend**: `cargo-deny` (RustSec advisories + license allowlist + banned crates + trusted sources, configured in [`backend/deny.toml`](./backend/deny.toml)). **Frontend**: `pnpm audit` (fail on high/critical). **Repo**: `gitleaks` secret scanning. |
 | `dependency-review.yml` | On PRs only: vets **newly introduced** dependencies, blocking vulnerable ones or disallowed licenses **before they are merged/installed**. |
 | `codeql.yml` | SAST for Rust and JS/TS (PR + push + weekly schedule). |
+| `claude-review.yml` | AI agent review of the PR diff (advisory; auth via Claude Pro/Max OAuth token in secret `CLAUDE_CODE_OAUTH_TOKEN`, generated with `claude setup-token`). |
+
+### Supply-chain vulnerability databases consulted
+Dependencies are cross-referenced against live, online advisory databases at multiple points:
+
+| Check | Database | When |
+|---|---|---|
+| `cargo-deny` (backend) | **RustSec Advisory Database** | every PR + push + local `make security` |
+| `pnpm audit` (frontend) | **GitHub Advisory Database** (npm advisories) | every PR + local |
+| `dependency-review` | **GitHub Advisory Database** (cargo + npm) | every PR, on the diff |
+| **Dependabot alerts** | **GitHub Advisory Database** | continuously, even after merge |
+
+So a vulnerable dependency is caught (a) on the PR that introduces it, and (b) continuously
+afterwards if a *new* advisory is later published against an already-merged version.
+CodeQL is **not** a dependency scanner — it's SAST on our own source. gitleaks/GitGuardian
+scan for leaked secrets, not vulnerabilities.
 
 Notes:
-- Workflows **self-skip** per area until `backend/` and `frontend/` exist, so they're green
-  on the current docs-only repo and activate automatically once code lands.
-- `dependency-review` requires the repo's Dependency Graph enabled (free on public repos;
-  needs GitHub Advanced Security on private repos).
-- **Action item**: once code lands, mark these as **required checks** in
-  *Settings → Branches → Branch protection* for `main`.
-- Consider enabling **Dependabot** for automated dependency-update PRs.
+- Workflows **self-skip** per area until `backend/` and `frontend/` exist.
+- `dependency-review` requires the repo's Dependency Graph (enabled).
+- Required checks on protected branches: `secret-scan` + `dependency-review` (enforced on
+  `main` and `develop`).
+- **Dependabot** alerts + automated security fixes: enabled.
 
 ## 12. Local developer defense
 
@@ -266,10 +280,10 @@ secret is committed and pushed it must be considered leaked (rotate it) even if 
 - [ ] Admin gated by role; non-default bootstrap password enforced.
 - [ ] Single-use, short-lived password-reset tokens.
 - [ ] Non-root container, distroless/slim, no secrets in images, internal-only DB.
-- [ ] CI security gate (`cargo-deny`, `npm audit`, dependency-review, CodeQL, gitleaks) — required checks on `main`.
+- [ ] CI security gate (`cargo-deny`, `pnpm audit`, dependency-review, CodeQL, gitleaks) — required checks on `main`.
 - [ ] Local git hooks installed (`make hooks`) — secret scan + checks before commit/push.
-- [ ] Lockfiles committed; build/install locked (`cargo build --locked`, `npm ci`).
-- [ ] Install-script policy decided (pnpm allowlist or npm `ignore-scripts`).
+- [ ] Lockfiles committed; build/install locked (`cargo build --locked`, `pnpm install --frozen-lockfile`).
+- [x] Install-script policy: **pnpm** (scripts blocked by default; allowlist in `frontend/pnpm-workspace.yaml`).
 - [ ] `cargo-vet` gating unvetted crate versions; small dependency tree.
 - [ ] Builds of untrusted deps run sandboxed; **secrets kept out of the build shell env**.
 - [ ] No secrets in logs; rate limiting on auth.

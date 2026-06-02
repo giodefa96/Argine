@@ -58,10 +58,10 @@ repos:
         files: ^backend/
         entry: bash -c 'test -f backend/Cargo.toml || exit 0; cd backend && cargo deny check'
 
-      - id: npm-audit
-        name: npm audit (high/critical)
+      - id: pnpm-audit
+        name: pnpm audit (high/critical)
         language: system
         pass_filenames: false
         stages: [pre-push]
         files: ^frontend/
-        entry: bash -c 'test -f frontend/package.json || exit 0; cd frontend && npm audit --audit-level=high'
+        entry: bash -c 'test -f frontend/package.json || exit 0; cd frontend && pnpm audit --audit-level high'
