@@ -11,6 +11,9 @@ ignore = []
 
 [licenses]
 version = 2
+# Our own app crate is AGPL-3.0 and never published — skip license checks on private crates
+# (the allowlist below governs third-party dependencies only).
+private = { ignore = true }
 # Permissive licenses we are happy to ship. Anything not listed fails the build,
 # forcing a conscious decision before a new license enters the dependency tree.
 allow = [
