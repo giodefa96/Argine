@@ -35,8 +35,10 @@ Behavior:
   (**fail-closed**: a typo like `prod` must never be silently treated as `local`).
 
 ## Status
-✅ Implemented (placeholder check for `SECRET_KEY`). Extend the same fail-fast pattern to
-future secrets (`POSTGRES_PASSWORD`, Telegram/SMTP tokens) when those are added.
+✅ Implemented (placeholder check for `SECRET_KEY`, strict env parsing). Unit-tested in
+`src/config.rs` (`#[cfg(test)] mod tests`): env parsing fail-closed, default-secret rejection
+per environment. Extend the same fail-fast pattern to future secrets (`POSTGRES_PASSWORD`,
+Telegram/SMTP tokens) when those are added.
 
 ## Open questions
 - Adopt a config crate (`figment`/`config`) for layered files + env once config grows? (IDEAS.md §5)

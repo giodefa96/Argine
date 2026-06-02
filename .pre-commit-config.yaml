@@ -1,40 +1,56 @@
-# Local defense layer — git hooks that mirror the CI security gate, so problems
-# are caught on your machine BEFORE they ever reach git history or a PR.
+# Local quality + security gate — git hooks that mirror CI, so problems are caught on
+# your machine BEFORE they reach git history or a PR.
 #
-# Install once:   make hooks        (or: pre-commit install --install-hooks && pre-commit install -t pre-push)
+# Install once:   make hooks      (pre-commit install --install-hooks && pre-commit install -t pre-push)
 # Run manually:   pre-commit run --all-files
 #
 # Two speeds:
-#   - pre-commit stage: fast checks on every commit (secrets, hygiene, fmt)
-#   - pre-push stage:   heavier checks before pushing (clippy, cargo-deny, npm audit)
+#   - pre-commit stage: fast checks on every commit (secrets, hygiene, format, lint)
+#   - pre-push stage:   heavier checks before pushing (clippy, tests, typecheck, audit, deny)
 #
-# Local hooks self-skip until backend/ and frontend/ exist (matches CI behaviour).
+# Local hooks self-skip until backend/ and frontend/ exist; Python hooks only trigger on
+# .py files, so they stay inert until the geo/ML code lands. Bump pinned revs with
+# `pre-commit autoupdate`.
 
 default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   # --- General hygiene + private-key detection -------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
-      - id: detect-private-key            # blocks committing PEM / SSH private keys
+      - id: detect-private-key # blocks committing PEM / SSH private keys
       - id: check-added-large-files
         args: ["--maxkb=2000"]
       - id: check-merge-conflict
       - id: check-yaml
+      - id: check-toml
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
   # --- Secret scanning (THE most important local hook) -----------------------
-  # Stops credentials/tokens from ever entering git history. Same engine as CI.
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.21.2
+    rev: v8.30.0
     hooks:
       - id: gitleaks
+
+  # --- Python (geo/ML) — inert until *.py files exist ------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.15
+    hooks:
+      - id: ruff # lint
+        args: [--fix]
+      - id: ruff-format # format
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.1.0
+    hooks:
+      - id: mypy
+        stages: [pre-push]
 
   # --- Project checks (mirror CI). Guarded so they no-op until code exists ----
   - repo: local
     hooks:
+      # Rust ----------------------------------------------------------------
       - id: cargo-fmt
         name: cargo fmt (check)
         language: system
@@ -50,13 +66,54 @@ repos:
         files: ^backend/
         entry: bash -c 'test -f backend/Cargo.toml || exit 0; cd backend && cargo clippy --all-targets -- -D warnings'
 
+      - id: cargo-test
+        name: cargo test
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^backend/
+        entry: bash -c 'test -f backend/Cargo.toml || exit 0; cd backend && cargo test'
+
       - id: cargo-deny
         name: cargo deny (advisories/licenses/sources)
         language: system
         pass_filenames: false
         stages: [pre-push]
         files: ^backend/
-        entry: bash -c 'test -f backend/Cargo.toml || exit 0; cd backend && cargo deny check'
+        # Skip if cargo-deny isn't installed locally (CI always runs it). Install with
+        # `cargo install cargo-deny --locked` to enable the local check.
+        entry: bash -c 'command -v cargo-deny >/dev/null 2>&1 || { echo "cargo-deny not installed — skipping (CI enforces it)"; exit 0; }; test -f backend/Cargo.toml || exit 0; cd backend && cargo deny check'
+
+      # Frontend ------------------------------------------------------------
+      - id: eslint
+        name: eslint
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+        entry: bash -c 'test -f frontend/package.json || exit 0; cd frontend && pnpm exec eslint .'
+
+      - id: prettier
+        name: prettier (check)
+        language: system
+        pass_filenames: false
+        files: ^frontend/
+        entry: bash -c 'test -f frontend/package.json || exit 0; cd frontend && pnpm exec prettier --check .'
+
+      - id: tsc
+        name: tsc (typecheck)
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^frontend/.*\.(ts|tsx)$
+        entry: bash -c 'test -f frontend/package.json || exit 0; cd frontend && pnpm exec tsc --noEmit'
+
+      - id: vitest
+        name: vitest run
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: ^frontend/
+        entry: bash -c 'test -f frontend/package.json || exit 0; cd frontend && pnpm test'
 
       - id: pnpm-audit
         name: pnpm audit (high/critical)

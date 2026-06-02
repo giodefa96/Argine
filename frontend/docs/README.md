@@ -8,12 +8,15 @@ under [`features/`](./features/). When you add or change a feature, update its d
 same PR — docs drift is treated as a bug.
 
 ## Index
+
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — tooling, entry flow, structure, planned components.
 - `features/` — one document per feature:
   - [`app-shell.md`](./features/app-shell.md)
 
 ## Feature doc template
+
 Each `features/<name>.md` should cover:
+
 1. **Overview** — what it does, in one paragraph.
 2. **Design** — how it works, decisions and trade-offs.
 3. **Files / code** — components, hooks, routes involved (`path:symbol`).

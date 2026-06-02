@@ -19,7 +19,7 @@ must succeed even if downstream systems (DB, external APIs) are down, so it refl
 - **Response:** `200 OK`, body `{"status":"ok"}`, content-type `application/json`
 
 ## Status
-✅ Implemented.
+✅ Implemented. Tested in `tests/health.rs` (200 + JSON body, and 404 for unknown routes).
 
 ## Open questions
 - Add a separate `/ready` (readiness) endpoint that checks DB connectivity once persistence
