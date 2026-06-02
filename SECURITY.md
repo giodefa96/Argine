@@ -268,8 +268,8 @@ secret is committed and pushed it must be considered leaked (rotate it) even if 
 - [ ] Non-root container, distroless/slim, no secrets in images, internal-only DB.
 - [ ] CI security gate (`cargo-deny`, `npm audit`, dependency-review, CodeQL, gitleaks) — required checks on `main`.
 - [ ] Local git hooks installed (`make hooks`) — secret scan + checks before commit/push.
-- [ ] Lockfiles committed; build/install locked (`cargo build --locked`, `npm ci`).
-- [ ] Install-script policy decided (pnpm allowlist or npm `ignore-scripts`).
+- [ ] Lockfiles committed; build/install locked (`cargo build --locked`, `pnpm install --frozen-lockfile`).
+- [x] Install-script policy: **pnpm** (scripts blocked by default; allowlist in `frontend/pnpm-workspace.yaml`).
 - [ ] `cargo-vet` gating unvetted crate versions; small dependency tree.
 - [ ] Builds of untrusted deps run sandboxed; **secrets kept out of the build shell env**.
 - [ ] No secrets in logs; rate limiting on auth.

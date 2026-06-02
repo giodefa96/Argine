@@ -43,9 +43,11 @@ This project is security-by-design. When writing or reviewing code, these are ha
 - **Auth:** JWT (`jsonwebtoken`, `exp` validated) + Argon2id passwords (`argon2`). Public read
   endpoints stay open; gate only writes, admin, and subscriber data.
 - **CORS:** explicit allowlist, never `Any` in production.
-- **Supply chain:** install/build with the lockfile (`cargo build --locked`, `npm ci` — never
-  `npm install`). New deps must pass `cargo-deny`/dependency-review. Assume dependency code
-  runs at build time; prefer `cargo-vet` + sandboxed builds.
+- **Supply chain:** install/build with the lockfile (`cargo build --locked`; frontend uses
+  **pnpm** — `pnpm install --frozen-lockfile`, never `npm install`). pnpm blocks install
+  scripts by default; allowlist in `frontend/pnpm-workspace.yaml`. New deps must pass
+  `cargo-deny`/dependency-review. Assume dependency code runs at build time; prefer
+  `cargo-vet` + sandboxed builds.
 - **Keep secrets OUT of the build shell environment** — build scripts inherit env vars.
 
 ## Developer commands

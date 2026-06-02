@@ -1,0 +1,5 @@
+# pnpm settings (pnpm 10+ reads them here, not from package.json).
+# Allowlist of dependencies permitted to run install/build scripts — everything
+# else is blocked by default (supply-chain defense, SECURITY.md §13).
+onlyBuiltDependencies:
+  - esbuild

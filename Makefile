@@ -28,9 +28,9 @@ backend-security: ## Rust supply-chain & advisory checks (cargo-deny)
 		echo "ℹ️  no backend/Cargo.toml yet — skipping backend security"; \
 	fi
 
-frontend-security: ## Frontend dependency audit (npm audit)
+frontend-security: ## Frontend dependency audit (pnpm audit)
 	@if [ -f frontend/package.json ]; then \
-		cd frontend && npm audit --audit-level=high; \
+		cd frontend && pnpm audit --audit-level high; \
 	else \
 		echo "ℹ️  no frontend/package.json yet — skipping frontend security"; \
 	fi
