@@ -29,8 +29,10 @@ Environment variables:
 | `SECRET_KEY` | `changethis` | **yes** | startup fails if unset/default outside `local` |
 | `CORS_ORIGINS` | _(empty)_ | recommended | comma-separated origin allowlist |
 
-Behavior: in `staging`/`production`, `SECRET_KEY == "changethis"` → `ConfigError::DefaultSecret`
-→ process exits non-zero.
+Behavior:
+- In `staging`/`production`, `SECRET_KEY == "changethis"` → `ConfigError::DefaultSecret` → exit non-zero.
+- An unrecognized `ENVIRONMENT` value → `ConfigError::UnknownEnvironment` → exit non-zero
+  (**fail-closed**: a typo like `prod` must never be silently treated as `local`).
 
 ## Status
 ✅ Implemented (placeholder check for `SECRET_KEY`). Extend the same fail-fast pattern to

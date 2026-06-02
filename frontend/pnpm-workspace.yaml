@@ -1,4 +1,5 @@
-# pnpm settings (pnpm 10+ reads them here, not from package.json).
+# pnpm settings live here. The package.json "pnpm" field is deprecated and ignored by
+# pnpm 11 (it emits a warning), so settings belong in this file.
 # Allowlist of dependencies permitted to run install/build scripts — everything
 # else is blocked by default (supply-chain defense, SECURITY.md §13).
 onlyBuiltDependencies:

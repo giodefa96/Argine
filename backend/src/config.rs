@@ -16,11 +16,15 @@ pub enum Environment {
 }
 
 impl Environment {
-    fn parse(s: &str) -> Self {
+    /// Parse strictly: an unrecognized value is an error, not a silent fallback to
+    /// `Local` (which would be fail-open — a typo like `prod` must not disable the
+    /// non-local secret check).
+    fn parse(s: &str) -> Result<Self, ConfigError> {
         match s {
-            "production" => Environment::Production,
-            "staging" => Environment::Staging,
-            _ => Environment::Local,
+            "local" => Ok(Environment::Local),
+            "staging" => Ok(Environment::Staging),
+            "production" => Ok(Environment::Production),
+            other => Err(ConfigError::UnknownEnvironment(other.to_string())),
         }
     }
 
@@ -42,12 +46,14 @@ pub struct Config {
 pub enum ConfigError {
     #[error("{0} is still the default placeholder \"changethis\" — set a real value (see SECURITY.md §3)")]
     DefaultSecret(&'static str),
+    #[error("unknown ENVIRONMENT \"{0}\" — expected local|staging|production")]
+    UnknownEnvironment(String),
 }
 
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
         let environment =
-            Environment::parse(&env::var("ENVIRONMENT").unwrap_or_else(|_| "local".to_string()));
+            Environment::parse(&env::var("ENVIRONMENT").unwrap_or_else(|_| "local".to_string()))?;
         let bind_addr = env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
         let secret_key = env::var("SECRET_KEY").unwrap_or_else(|_| PLACEHOLDER.to_string());
         let cors_origins = env::var("CORS_ORIGINS")

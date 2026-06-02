@@ -280,7 +280,7 @@ secret is committed and pushed it must be considered leaked (rotate it) even if 
 - [ ] Admin gated by role; non-default bootstrap password enforced.
 - [ ] Single-use, short-lived password-reset tokens.
 - [ ] Non-root container, distroless/slim, no secrets in images, internal-only DB.
-- [ ] CI security gate (`cargo-deny`, `npm audit`, dependency-review, CodeQL, gitleaks) — required checks on `main`.
+- [ ] CI security gate (`cargo-deny`, `pnpm audit`, dependency-review, CodeQL, gitleaks) — required checks on `main`.
 - [ ] Local git hooks installed (`make hooks`) — secret scan + checks before commit/push.
 - [ ] Lockfiles committed; build/install locked (`cargo build --locked`, `pnpm install --frozen-lockfile`).
 - [x] Install-script policy: **pnpm** (scripts blocked by default; allowlist in `frontend/pnpm-workspace.yaml`).
