@@ -33,7 +33,7 @@ exceptions = []
 [bans]
 # Catch dependency bloat / supply-chain risk from duplicated or unwanted crates.
 multiple-versions = "warn"
-wildcard-dependencies = "deny"
+wildcards = "deny"
 # Example of banning a specific crate:
 # deny = [{ name = "openssl", reason = "prefer rustls" }]
 deny = []

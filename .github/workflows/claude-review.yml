@@ -1,0 +1,43 @@
+name: Claude Review
+
+# AI agent code review on every PR. Advisory (posts a review with findings) — it does not
+# replace the security gate in security.yml. Requires repo secret ANTHROPIC_API_KEY.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Skip drafts.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Only run when the API key secret is configured — otherwise skip cleanly (no red X).
+      - if: env.ANTHROPIC_API_KEY != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request for the Argine project. Read CLAUDE.md and SECURITY.md first.
+            Focus on:
+            - Correctness and likely bugs.
+            - Security baseline compliance (secrets via env + fail-fast, no secret logging,
+              parameterized SQL, input validation, CORS allowlist, supply-chain rules).
+            - Whether the PR follows the docs rule: any feature added/changed must have its
+              backend/docs/ or frontend/docs/ feature doc and ARCHITECTURE.md updated.
+            - Simplicity (flag overengineering) and surgical, scoped changes.
+            Post concise, actionable findings as a PR review. Praise is unnecessary.

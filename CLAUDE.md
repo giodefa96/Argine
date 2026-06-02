@@ -31,6 +31,11 @@ SECURITY.md     security baseline + checklist   Makefile    dev entry points
 ### Conventions
 - Documentation and code comments in **English**.
 - Data sources: ARPA Lombardia (hydrometry), Open-Meteo (rain forecast), PGRA/PAI + DTM (geo).
+- **Docs are mandatory and live next to the code.** `backend/docs/` and `frontend/docs/` are
+  the low-level source of truth: each holds an `ARCHITECTURE.md` plus a `features/<name>.md`
+  per feature (template in each `docs/README.md`). **Every PR that adds or changes a feature
+  must add/update its `features/` doc and `ARCHITECTURE.md` in the same PR** — docs drift is
+  treated as a bug. From `docs/` alone one should understand the whole project.
 
 ## Security is non-negotiable — read [`SECURITY.md`](./SECURITY.md)
 
