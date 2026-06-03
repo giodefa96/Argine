@@ -2,6 +2,7 @@
 //! The binary (`main.rs`) is a thin wrapper around this so the router can be tested.
 
 pub mod config;
+pub mod domain;
 
 use axum::extract::State;
 use axum::http::StatusCode;
