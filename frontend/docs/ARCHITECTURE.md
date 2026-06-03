@@ -35,17 +35,17 @@ flowchart LR
 
 ## Structure (current)
 
-| File                          | Responsibility                                          |
-| ----------------------------- | ------------------------------------------------------- |
-| `index.html`                  | HTML host, mounts `#root`, loads `src/main.tsx`         |
-| `src/main.tsx`                | React root, `StrictMode`, `QueryClientProvider`         |
-| `src/App.tsx`                 | station selector + level view                           |
-| `src/lib/api.ts`              | typed client for the backend read API (`VITE_API_URL`)  |
-| `src/hooks/queries.ts`        | TanStack Query hooks (`useStations`, `useObservations`) |
-| `src/components/LevelChart.tsx`  | uPlot time-series wrapper                            |
-| `src/components/StationLevel.tsx`| loads + renders one station's series (states)       |
-| `src/test/*`                  | MSW server/handlers + render helper                     |
-| `src/vite-env.d.ts`           | Vite client type refs                                   |
+| File                              | Responsibility                                          |
+| --------------------------------- | ------------------------------------------------------- |
+| `index.html`                      | HTML host, mounts `#root`, loads `src/main.tsx`         |
+| `src/main.tsx`                    | React root, `StrictMode`, `QueryClientProvider`         |
+| `src/App.tsx`                     | station selector + level view                           |
+| `src/lib/api.ts`                  | typed client for the backend read API (`VITE_API_URL`)  |
+| `src/hooks/queries.ts`            | TanStack Query hooks (`useStations`, `useObservations`) |
+| `src/components/LevelChart.tsx`   | uPlot time-series wrapper                               |
+| `src/components/StationLevel.tsx` | loads + renders one station's series (states)           |
+| `src/test/*`                      | MSW server/handlers + render helper                     |
+| `src/vite-env.d.ts`               | Vite client type refs                                   |
 
 ## Data layer
 
