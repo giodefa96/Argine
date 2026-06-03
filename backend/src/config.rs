@@ -38,6 +38,8 @@ pub struct Config {
     pub environment: Environment,
     pub bind_addr: String,
     pub secret_key: String,
+    /// PostgreSQL/TimescaleDB connection string (contains the DB password).
+    pub database_url: String,
     /// Explicit CORS origin allowlist (never `*` in production).
     pub cors_origins: Vec<String>,
 }
@@ -56,6 +58,8 @@ impl Config {
             Environment::parse(&env::var("ENVIRONMENT").unwrap_or_else(|_| "local".to_string()))?;
         let bind_addr = env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
         let secret_key = env::var("SECRET_KEY").unwrap_or_else(|_| PLACEHOLDER.to_string());
+        let database_url = env::var("DATABASE_URL")
+            .unwrap_or_else(|_| format!("postgres://argine:{PLACEHOLDER}@localhost:5432/argine"));
         let cors_origins = env::var("CORS_ORIGINS")
             .unwrap_or_default()
             .split(',')
@@ -67,6 +71,7 @@ impl Config {
             environment,
             bind_addr,
             secret_key,
+            database_url,
             cors_origins,
         };
         config.validate()?;
@@ -74,8 +79,16 @@ impl Config {
     }
 
     fn validate(&self) -> Result<(), ConfigError> {
-        if !self.environment.is_local() && self.secret_key == PLACEHOLDER {
-            return Err(ConfigError::DefaultSecret("SECRET_KEY"));
+        if !self.environment.is_local() {
+            if self.secret_key == PLACEHOLDER {
+                return Err(ConfigError::DefaultSecret("SECRET_KEY"));
+            }
+            // The default DB password must not survive into a deployed environment.
+            // Match the password segment specifically (":changethis@") so a legitimate URL
+            // that contains "changethis" elsewhere (db name, user, params) isn't rejected.
+            if self.database_url.contains(&format!(":{PLACEHOLDER}@")) {
+                return Err(ConfigError::DefaultSecret("DATABASE_URL"));
+            }
         }
         Ok(())
     }
@@ -90,6 +103,7 @@ mod tests {
             environment,
             bind_addr: "0.0.0.0:8080".to_string(),
             secret_key: secret.to_string(),
+            database_url: "postgres://argine:a-real-password@localhost:5432/argine".to_string(),
             cors_origins: vec![],
         }
     }
@@ -133,5 +147,23 @@ mod tests {
         assert!(config_with(Environment::Production, "a-real-secret")
             .validate()
             .is_ok());
+    }
+
+    #[test]
+    fn default_db_password_rejected_outside_local() {
+        let mut cfg = config_with(Environment::Production, "a-real-secret");
+        cfg.database_url = format!("postgres://argine:{PLACEHOLDER}@db:5432/argine");
+        assert!(matches!(
+            cfg.validate(),
+            Err(ConfigError::DefaultSecret("DATABASE_URL"))
+        ));
+    }
+
+    #[test]
+    fn placeholder_outside_password_is_allowed() {
+        // "changethis" in the db name (not the password) must not trip the check.
+        let mut cfg = config_with(Environment::Production, "a-real-secret");
+        cfg.database_url = "postgres://argine:a-real-password@db:5432/changethis".to_string();
+        assert!(cfg.validate().is_ok());
     }
 }

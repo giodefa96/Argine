@@ -39,21 +39,32 @@ A system that monitors river levels in (near) real time and produces **short-ter
 
 ## 4. Architecture (high level)
 
-```
-   External sources                 Rust backend                     Frontend
- ┌──────────────────┐        ┌───────────────────────┐         ┌──────────────┐
- │ ARPA Lombardia   │        │  Ingestion scheduler  │         │ React (PWA)  │
- │ (hydrometry)     │──┐     │  (tokio-cron)         │         │  - map       │
- │                  │  │     │        │              │         │  - charts    │
- │ Open-Meteo       │──┼────▶│   normalization       │◀──REST──│  - alerts    │
- │ (forecasts)      │  │     │        │              │  /SSE   │              │
- └──────────────────┘  │     │   TimescaleDB (TS)    │         └──────────────┘
-                        │     │        │              │
-                        │     │   Forecast engine     │
-                        └────▶│   (baseline → ML)     │
-                              │        │              │
-                              │   Alert engine        │──▶ notifications (push/Telegram/email)
-                              └───────────────────────┘
+```mermaid
+flowchart LR
+    subgraph ext[External sources]
+        arpa[ARPA Lombardia<br/>hydrometry]
+        om[Open-Meteo<br/>rain forecasts]
+    end
+
+    subgraph be[Rust backend - Axum]
+        ing[Ingestion scheduler<br/>tokio-cron]
+        norm[Normalization]
+        db[(TimescaleDB)]
+        fc[Forecast engine<br/>baseline → ML/ONNX]
+        alert[Alert engine]
+    end
+
+    subgraph fe[Frontend - React PWA]
+        ui[Map · charts · alerts]
+    end
+
+    arpa --> ing
+    om --> ing
+    ing --> norm --> db
+    db --> fc --> db
+    db --> alert
+    db -->|REST / SSE| ui
+    alert -->|push / Telegram / email| notif[Notifications]
 ```
 
 The backend's three key responsibilities:

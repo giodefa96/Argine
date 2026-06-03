@@ -3,22 +3,51 @@
 
 pub mod config;
 
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::{routing::get, Json, Router};
 use config::Config;
 use serde_json::{json, Value};
+use sqlx::PgPool;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 
-/// Build the application router from configuration.
-pub fn router(config: &Config) -> Router {
-    Router::new()
-        .route("/health", get(health))
-        .layer(cors_layer(config))
-        .layer(TraceLayer::new_for_http())
+/// Shared application state passed to handlers.
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
 }
 
+/// Build the application router from state and configuration.
+pub fn router(state: AppState, config: &Config) -> Router {
+    Router::new()
+        .route("/health", get(health))
+        .route("/ready", get(ready))
+        .layer(cors_layer(config))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state)
+}
+
+/// Liveness: the process is up and serving HTTP. No dependencies, so it stays green
+/// even when downstream systems (DB) are down.
 async fn health() -> Json<Value> {
     Json(json!({ "status": "ok" }))
+}
+
+/// Readiness: the process can serve real traffic — here, the database is reachable.
+async fn ready(State(state): State<AppState>) -> impl IntoResponse {
+    match sqlx::query("SELECT 1").execute(&state.pool).await {
+        Ok(_) => (StatusCode::OK, Json(json!({ "status": "ready" }))),
+        Err(e) => {
+            // Never leak the raw DB error to clients; log it, return a generic status.
+            tracing::warn!(error = %e, "readiness check failed");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "status": "unavailable" })),
+            )
+        }
+    }
 }
 
 /// Build the CORS layer from the explicit origin allowlist (SECURITY.md §4).

@@ -34,8 +34,22 @@ jobs:
     needs: detect
     if: needs.detect.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: timescale/timescaledb:2.17.2-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      # #[sqlx::test] connects here and provisions an ephemeral DB per test.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     defaults:
       run:
         working-directory: backend
@@ -48,7 +62,7 @@ jobs:
         with:
           workspaces: backend
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --all-targets --all-features -- -D warnings
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov

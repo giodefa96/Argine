@@ -1,7 +1,7 @@
 # Argine — developer entry points. Local gates mirror CI.
 .DEFAULT_GOAL := help
 .PHONY: help hooks security secrets backend-security frontend-security \
-        test test-backend test-frontend e2e lint
+        test test-backend test-frontend e2e lint db-up db-down
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -55,3 +55,9 @@ lint: ## Lint + format check (Rust fmt/clippy, frontend eslint/prettier)
 	@if [ -f backend/Cargo.toml ]; then cd backend && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings; fi
 	@if [ -f frontend/package.json ]; then cd frontend && pnpm lint && pnpm format:check; fi
 	@echo "✅ lint passed"
+
+db-up: ## Start the local TimescaleDB (docker compose)
+	docker compose up -d db
+
+db-down: ## Stop the local stack
+	docker compose down
