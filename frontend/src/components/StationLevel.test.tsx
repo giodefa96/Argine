@@ -7,12 +7,15 @@ import { renderWithClient } from '../test/utils'
 import StationLevel from './StationLevel'
 
 // uPlot draws to a canvas, which jsdom doesn't implement — mock it with a no-op class
-// (constructed via `new`). Real rendering is covered by the E2E test.
-vi.mock('uplot', () => ({
-  default: class {
+// (constructed via `new`) plus the static paths.bars builder LevelChart uses for rain.
+// Real rendering is covered by the E2E test.
+vi.mock('uplot', () => {
+  class U {
     destroy() {}
-  },
-}))
+  }
+  ;(U as unknown as { paths: unknown }).paths = { bars: () => () => {} }
+  return { default: U }
+})
 
 const station = sampleStations[0]
 

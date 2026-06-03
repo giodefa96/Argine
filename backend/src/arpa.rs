@@ -1,10 +1,11 @@
-//! ARPA Lombardia hydrometry ingestion (Seveso).
+//! ARPA Lombardia ingestion (Seveso): river level + co-located rainfall.
 //!
 //! Source: Regione Lombardia open-data (Socrata). There is no public real-time API for
 //! lowland river levels, so published values lag ~18h — see `DATA_SOURCES.md`. Two paths:
 //! a scheduled forward poll (recent dataset) and a one-shot historical backfill (for the
-//! frontend time-slider / ML). All HTTP is mocked with `wiremock` in tests — never hit the
-//! real endpoint in CI (CLAUDE.md).
+//! frontend time-slider / ML). For each station we ingest its hydrometric level and, when a
+//! co-located rain gauge exists, its rainfall — stored on the SAME station as `rain_mm`, so
+//! level and rain correlate at one place. All HTTP is mocked with `wiremock` in tests.
 
 use crate::domain::{self, Metric, NewStation, StationKind};
 use serde::Deserialize;
@@ -26,32 +27,43 @@ const ARPA_OFFSET: UtcOffset = offset!(+1);
 const SENTINEL_MAX: f64 = -900.0;
 /// Socrata's max rows per response — the backfill pages in this size.
 const PAGE: u32 = 1000;
+/// Divisor to the canonical stored unit. Level is reported in cm → metres (÷100); rain in
+/// mm → kept as-is (÷1). A divisor (not a ×0.01 factor) keeps values like 188→1.88 exact.
+const LEVEL_DIVISOR: f64 = 100.0;
+const RAIN_DIVISOR: f64 = 1.0;
 
-/// A Seveso hydrometric station to ingest. `sensor_id` is the ARPA `idsensore`, stored as
-/// `station.external_id`. Coordinates are from the ARPA station registry (`nf78-nj6b`).
+/// A Seveso station to ingest. `sensor_id` is the ARPA hydrometric `idsensore`, stored as
+/// `station.external_id`. `rain_sensor_id` is the co-located rain gauge, ingested onto the
+/// same station as `rain_mm`. Coordinates are from the ARPA registry (`nf78-nj6b`).
 pub struct SeedStation {
     pub sensor_id: &'static str,
+    pub rain_sensor_id: Option<&'static str>,
     pub name: &'static str,
     pub lat: f64,
     pub lon: f64,
 }
 
-/// The active hydrometric stations on the Seveso (see `DATA_SOURCES.md`): upstream → city.
+/// The active hydrometric stations on the Seveso (see `DATA_SOURCES.md`): upstream → city,
+/// each paired with the nearest rain gauge (8199/30525 are co-located; 4065 is the closest
+/// gauge to Niguarda).
 pub const SEVESO_STATIONS: &[SeedStation] = &[
     SeedStation {
         sensor_id: "8119",
+        rain_sensor_id: Some("8199"),
         name: "Cantù Asnago",
         lat: 45.71853181,
         lon: 9.10037269,
     },
     SeedStation {
         sensor_id: "8121",
+        rain_sensor_id: Some("30525"),
         name: "Paderno Dugnano Palazzolo",
         lat: 45.58280558,
         lon: 9.15897783,
     },
     SeedStation {
         sensor_id: "3118",
+        rain_sensor_id: Some("4065"),
         name: "Milano Niguarda",
         lat: 45.52580195,
         lon: 9.19222420,
@@ -69,6 +81,7 @@ pub enum IngestError {
 /// A raw row from either Socrata dataset (they share these fields).
 #[derive(Debug, Deserialize)]
 struct ArpaRow {
+    #[allow(dead_code)] // present in the API payload; we key by the requested sensor instead
     idsensore: String,
     data: String,
     valore: String,
@@ -77,17 +90,16 @@ struct ArpaRow {
     stato: Option<String>,
 }
 
-/// A normalized observation: level in **metres** at an absolute timestamp.
+/// A normalized observation: value in the canonical unit at an absolute timestamp.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedObs {
-    pub sensor_id: String,
     pub ts: OffsetDateTime,
-    pub value_m: f64,
+    pub value: f64,
 }
 
-/// Normalize raw ARPA rows → observations. Drops rows with an unparseable timestamp or
-/// value, and the missing-value sentinel. Converts cm → m (ARPA reports level in cm).
-fn normalize(rows: &[ArpaRow]) -> Vec<ParsedObs> {
+/// Normalize raw ARPA rows → observations, dividing the raw reading by `divisor` (100 for
+/// level cm→m, 1 for rain mm). Drops rows with an unparseable timestamp/value or the sentinel.
+fn normalize(rows: &[ArpaRow], divisor: f64) -> Vec<ParsedObs> {
     let fmt = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
@@ -101,9 +113,8 @@ fn normalize(rows: &[ArpaRow]) -> Vec<ParsedObs> {
             continue;
         };
         out.push(ParsedObs {
-            sensor_id: r.idsensore.clone(),
             ts: naive.assume_offset(ARPA_OFFSET),
-            value_m: value / 100.0,
+            value: value / divisor,
         });
     }
     out
@@ -139,11 +150,12 @@ impl ArpaClient {
             .await
     }
 
-    /// The most recent `limit` observations for one sensor (forward poll).
+    /// The most recent `limit` observations for one sensor (forward poll), scaled to the unit.
     pub async fn fetch_recent(
         &self,
         sensor_id: &str,
         limit: u32,
+        divisor: f64,
     ) -> Result<Vec<ParsedObs>, reqwest::Error> {
         let limit = limit.to_string();
         let rows = self
@@ -156,16 +168,17 @@ impl ArpaClient {
                 ],
             )
             .await?;
-        Ok(normalize(&rows))
+        Ok(normalize(&rows, divisor))
     }
 
-    /// One page of the historical series for a sensor, ordered ascending by time. Returns
+    /// One page of the historical series for a sensor, ascending by time. Returns
     /// `(raw_row_count, observations)`: the raw count drives backfill termination, since a
     /// page can be non-empty yet normalize to nothing (e.g. an outage of all-sentinel rows).
     async fn fetch_history_page(
         &self,
         sensor_id: &str,
         offset: u32,
+        divisor: f64,
     ) -> Result<(usize, Vec<ParsedObs>), reqwest::Error> {
         let (limit, offset) = (PAGE.to_string(), offset.to_string());
         let rows = self
@@ -179,7 +192,7 @@ impl ArpaClient {
                 ],
             )
             .await?;
-        Ok((rows.len(), normalize(&rows)))
+        Ok((rows.len(), normalize(&rows, divisor)))
     }
 }
 
@@ -205,50 +218,96 @@ pub async fn seed_stations(pool: &PgPool) -> Result<HashMap<String, i64>, sqlx::
     Ok(map)
 }
 
-/// Store observations, mapping `sensor_id → station.id`. Rows for unknown sensors are
-/// skipped. Batched (one query per ≤1000 rows). Idempotent (upsert on `(station, metric, ts)`).
+/// Store observations on `station_id` under `metric`. Batched (one query per ≤1000 rows),
+/// idempotent (upsert on `(station, metric, ts)`). Returns the number stored.
 async fn store(
     pool: &PgPool,
-    map: &HashMap<String, i64>,
+    station_id: i64,
+    metric: Metric,
     obs: &[ParsedObs],
 ) -> Result<usize, sqlx::Error> {
     let batch: Vec<(i64, OffsetDateTime, Metric, f64)> = obs
         .iter()
-        .filter_map(|o| {
-            map.get(&o.sensor_id)
-                .map(|&id| (id, o.ts, Metric::LevelM, o.value_m))
-        })
+        .map(|o| (station_id, o.ts, metric, o.value))
         .collect();
     domain::upsert_observations(pool, &batch).await
 }
 
-/// One forward-poll cycle: seed stations, then store the recent window for each.
+/// One forward-poll cycle: seed stations, then store the recent level (and rain, where a
+/// co-located gauge exists) for each.
 pub async fn poll_once(pool: &PgPool, client: &ArpaClient) -> Result<usize, IngestError> {
     let map = seed_stations(pool).await?;
     let mut total = 0;
     for s in SEVESO_STATIONS {
-        let obs = client.fetch_recent(s.sensor_id, 100).await?;
-        total += store(pool, &map, &obs).await?;
+        let station_id = map[s.sensor_id];
+        let level = client.fetch_recent(s.sensor_id, 100, LEVEL_DIVISOR).await?;
+        total += store(pool, station_id, Metric::LevelM, &level).await?;
+        if let Some(rain_id) = s.rain_sensor_id {
+            let rain = client.fetch_recent(rain_id, 100, RAIN_DIVISOR).await?;
+            total += store(pool, station_id, Metric::RainMm, &rain).await?;
+        }
     }
     Ok(total)
 }
 
-/// One-shot historical backfill: page through the history dataset for every station and
-/// store it. Heavy (years of 10-min data) — an operator step, not the scheduled path.
+/// Page the full history of one sensor onto `station_id` under `metric`. Terminates on a
+/// raw-empty page. Returns the number stored.
+async fn backfill_sensor(
+    pool: &PgPool,
+    client: &ArpaClient,
+    sensor_id: &str,
+    station_id: i64,
+    metric: Metric,
+    divisor: f64,
+) -> Result<usize, IngestError> {
+    let mut total = 0;
+    let mut offset = 0;
+    loop {
+        let (raw, page) = client
+            .fetch_history_page(sensor_id, offset, divisor)
+            .await?;
+        if raw == 0 {
+            break; // no more rows (a page may be non-empty yet normalize to nothing, so
+                   // terminate on the raw count, not `page`).
+        }
+        total += store(pool, station_id, metric, &page).await?;
+        offset += PAGE;
+        tracing::info!(
+            sensor = sensor_id,
+            ?metric,
+            stored = total,
+            "backfill progress"
+        );
+    }
+    Ok(total)
+}
+
+/// One-shot historical backfill: page through the history dataset for every station's level
+/// and co-located rain. Heavy (years of 10-min data) — an operator step, not the poll path.
 pub async fn backfill(pool: &PgPool, client: &ArpaClient) -> Result<usize, IngestError> {
     let map = seed_stations(pool).await?;
     let mut total = 0;
     for s in SEVESO_STATIONS {
-        let mut offset = 0;
-        loop {
-            let (raw, page) = client.fetch_history_page(s.sensor_id, offset).await?;
-            if raw == 0 {
-                break; // Socrata returned no more rows — done (a page may be non-empty yet
-                       // normalize to nothing, so terminate on the raw count, not `page`).
-            }
-            total += store(pool, &map, &page).await?;
-            offset += PAGE;
-            tracing::info!(sensor = s.sensor_id, stored = total, "backfill progress");
+        let station_id = map[s.sensor_id];
+        total += backfill_sensor(
+            pool,
+            client,
+            s.sensor_id,
+            station_id,
+            Metric::LevelM,
+            LEVEL_DIVISOR,
+        )
+        .await?;
+        if let Some(rain_id) = s.rain_sensor_id {
+            total += backfill_sensor(
+                pool,
+                client,
+                rain_id,
+                station_id,
+                Metric::RainMm,
+                RAIN_DIVISOR,
+            )
+            .await?;
         }
     }
     Ok(total)
@@ -269,14 +328,26 @@ mod tests {
     }
 
     #[test]
-    fn normalize_parses_cm_to_m_with_solar_offset() {
-        let parsed = normalize(&[row("3118", "2026-06-03T00:30:00.000", "188")]);
+    fn normalize_scales_level_cm_to_m_with_solar_offset() {
+        let parsed = normalize(
+            &[row("3118", "2026-06-03T00:30:00.000", "188")],
+            LEVEL_DIVISOR,
+        );
         assert_eq!(parsed.len(), 1);
-        assert_eq!(parsed[0].sensor_id, "3118");
-        assert_eq!(parsed[0].value_m, 1.88); // 188 cm → 1.88 m
-                                             // 00:30 in ARPA solar time (UTC+1) is the same instant as 23:30 UTC the day before.
+        assert_eq!(parsed[0].value, 1.88); // 188 cm → 1.88 m
+                                           // 00:30 in ARPA solar time (UTC+1) is the same instant as 23:30 UTC the day before.
         assert_eq!(parsed[0].ts.offset(), offset!(+1));
         assert_eq!(parsed[0].ts, datetime!(2026-06-02 23:30:00 UTC));
+    }
+
+    #[test]
+    fn normalize_keeps_rain_mm_unscaled() {
+        let parsed = normalize(
+            &[row("8199", "2026-06-03T00:30:00.000", "12.4")],
+            RAIN_DIVISOR,
+        );
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].value, 12.4); // mm kept as-is
     }
 
     #[test]
@@ -287,8 +358,8 @@ mod tests {
             row("3118", "2026-06-03T00:40:00.000", "abc"),   // bad value
             row("3118", "2026-06-03T00:50:00.000", "41"),    // good
         ];
-        let parsed = normalize(&rows);
+        let parsed = normalize(&rows, LEVEL_DIVISOR);
         assert_eq!(parsed.len(), 1);
-        assert_eq!(parsed[0].value_m, 0.41);
+        assert_eq!(parsed[0].value, 0.41);
     }
 }

@@ -95,9 +95,10 @@ Read from environment (see [`features/config-and-startup.md`](./features/config-
 - External APIs (ARPA, Open-Meteo) must be mocked (`wiremock`) — never called in tests.
 
 ## Ingestion
-A background `tokio::time::interval` task (spawned in `main.rs`) polls **ARPA hydrometry** hourly
-and upserts `observation` rows; `argine-backend backfill` runs a one-shot historical import. HTTP
-is `reqwest` (rustls). See [`features/arpa-ingestion.md`](./features/arpa-ingestion.md) and the
+A background `tokio::time::interval` task (spawned in `main.rs`) polls **ARPA** hourly and upserts
+`observation` rows — river **level** plus co-located **rainfall** (`rain_mm`) per station;
+`argine-backend backfill` runs a one-shot historical import. HTTP is `reqwest` (rustls). See
+[`features/arpa-ingestion.md`](./features/arpa-ingestion.md) and the
 data-source / latency notes in [`DATA_SOURCES.md`](../../DATA_SOURCES.md).
 
 ## Planned components (not yet implemented)

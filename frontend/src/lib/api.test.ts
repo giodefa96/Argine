@@ -23,11 +23,13 @@ describe('api client', () => {
     const obs = await fetchObservations(1, {
       from: '2026-06-01T00:00:00Z',
       limit: 500,
+      metric: 'rain_mm',
     })
 
     expect(obs).toEqual([])
     expect(url?.searchParams.get('from')).toBe('2026-06-01T00:00:00Z')
     expect(url?.searchParams.get('limit')).toBe('500')
+    expect(url?.searchParams.get('metric')).toBe('rain_mm')
   })
 
   it('throws on a non-2xx response', async () => {

@@ -4,11 +4,13 @@ import App from './App'
 import { renderWithClient } from './test/utils'
 
 // App renders the chart subtree, which pulls in uPlot (canvas, unsupported in jsdom).
-vi.mock('uplot', () => ({
-  default: class {
+vi.mock('uplot', () => {
+  class U {
     destroy() {}
-  },
-}))
+  }
+  ;(U as unknown as { paths: unknown }).paths = { bars: () => () => {} }
+  return { default: U }
+})
 
 test('renders the Argine heading', () => {
   renderWithClient(<App />)
