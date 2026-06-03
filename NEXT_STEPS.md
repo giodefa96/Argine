@@ -16,7 +16,7 @@ flow: `git flow feature start <name>` → code **+** tests **+** `docs/features/
 
 ## MVP — in priority order
 
-### 1. Infra: PostgreSQL + TimescaleDB + Docker Compose ✅ (in progress on `feature/persistence`)
+### 1. Infra: PostgreSQL + TimescaleDB + Docker Compose ✅ (PR #8 → `develop`)
 - **Goal:** local dev stack and persistence layer.
 - **Scope:** `docker-compose.yml` (db = `timescale/timescaledb`, backend); `sqlx` wired with
   `Cargo.lock`; first migration; `DATABASE_URL` config (fail-fast); `/ready` endpoint that

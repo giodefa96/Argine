@@ -8,12 +8,16 @@ use axum::http::{Request, StatusCode};
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
 
+/// Single source of truth for the dummy DB URL: the lazy pool never connects, so this
+/// must never point at a real database. Kept in one place so the two helpers can't diverge.
+const TEST_DB_URL: &str = "postgres://argine:test@localhost:5432/argine";
+
 fn test_config() -> Config {
     Config {
         environment: Environment::Local,
         bind_addr: "127.0.0.1:0".to_string(),
         secret_key: "test-secret".to_string(),
-        database_url: "postgres://argine:test@localhost:5432/argine".to_string(),
+        database_url: TEST_DB_URL.to_string(),
         cors_origins: vec![],
     }
 }
@@ -21,7 +25,7 @@ fn test_config() -> Config {
 /// A pool that never actually connects (lazy) — fine for routes that issue no queries.
 fn lazy_state() -> AppState {
     let pool = PgPoolOptions::new()
-        .connect_lazy("postgres://argine:test@localhost:5432/argine")
+        .connect_lazy(TEST_DB_URL)
         .expect("build lazy pool");
     AppState { pool }
 }

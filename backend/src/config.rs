@@ -84,7 +84,9 @@ impl Config {
                 return Err(ConfigError::DefaultSecret("SECRET_KEY"));
             }
             // The default DB password must not survive into a deployed environment.
-            if self.database_url.contains(PLACEHOLDER) {
+            // Match the password segment specifically (":changethis@") so a legitimate URL
+            // that contains "changethis" elsewhere (db name, user, params) isn't rejected.
+            if self.database_url.contains(&format!(":{PLACEHOLDER}@")) {
                 return Err(ConfigError::DefaultSecret("DATABASE_URL"));
             }
         }
@@ -155,5 +157,13 @@ mod tests {
             cfg.validate(),
             Err(ConfigError::DefaultSecret("DATABASE_URL"))
         ));
+    }
+
+    #[test]
+    fn placeholder_outside_password_is_allowed() {
+        // "changethis" in the db name (not the password) must not trip the check.
+        let mut cfg = config_with(Environment::Production, "a-real-secret");
+        cfg.database_url = "postgres://argine:a-real-password@db:5432/changethis".to_string();
+        assert!(cfg.validate().is_ok());
     }
 }
