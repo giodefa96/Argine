@@ -14,6 +14,7 @@ same PR — docs drift is treated as a bug.
   - [`health.md`](./features/health.md)
   - [`persistence.md`](./features/persistence.md)
   - [`domain-model.md`](./features/domain-model.md)
+  - [`arpa-ingestion.md`](./features/arpa-ingestion.md)
 
 ## Feature doc template
 Each `features/<name>.md` should cover:

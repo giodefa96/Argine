@@ -28,6 +28,8 @@ allow = [
     "Zlib",
     "CC0-1.0",
     "MPL-2.0",
+    # Permissive, no-copyleft data licence; pulled in transitively by hyper-rustls (CA data).
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
 # Per-crate license clarifications go here if a crate's license is ambiguous.

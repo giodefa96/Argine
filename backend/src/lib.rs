@@ -1,6 +1,7 @@
 //! Argine backend library: configuration and HTTP router.
 //! The binary (`main.rs`) is a thin wrapper around this so the router can be tested.
 
+pub mod arpa;
 pub mod config;
 pub mod domain;
 

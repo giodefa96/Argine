@@ -230,6 +230,28 @@ pub async fn upsert_observation(
     Ok(())
 }
 
+/// Batch-upsert observations in chunks of 1000 — far fewer round-trips than one row at a
+/// time, which matters for the backfill (years of 10-min data per station). Same idempotent
+/// `ON CONFLICT` as [`upsert_observation`]. Returns the number of input rows.
+pub async fn upsert_observations(
+    pool: &PgPool,
+    rows: &[(i64, OffsetDateTime, Metric, f64)],
+) -> sqlx::Result<usize> {
+    for chunk in rows.chunks(1000) {
+        let mut qb =
+            sqlx::QueryBuilder::new("INSERT INTO observation (station_id, ts, metric, value) ");
+        qb.push_values(chunk, |mut b, (station_id, ts, metric, value)| {
+            b.push_bind(*station_id)
+                .push_bind(*ts)
+                .push_bind(*metric)
+                .push_bind(*value);
+        });
+        qb.push(" ON CONFLICT (station_id, metric, ts) DO UPDATE SET value = EXCLUDED.value");
+        qb.build().execute(pool).await?;
+    }
+    Ok(rows.len())
+}
+
 /// A station's series for one metric over `[from, to]`, ordered by time.
 pub async fn observations_in_range(
     pool: &PgPool,
