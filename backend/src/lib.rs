@@ -1,6 +1,7 @@
 //! Argine backend library: configuration and HTTP router.
 //! The binary (`main.rs`) is a thin wrapper around this so the router can be tested.
 
+pub mod api;
 pub mod arpa;
 pub mod config;
 pub mod domain;
@@ -26,6 +27,12 @@ pub fn router(state: AppState, config: &Config) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .route("/stations", get(api::list_stations))
+        .route("/stations/{id}", get(api::get_station))
+        .route(
+            "/stations/{id}/observations",
+            get(api::station_observations),
+        )
         .layer(cors_layer(config))
         .layer(TraceLayer::new_for_http())
         .with_state(state)

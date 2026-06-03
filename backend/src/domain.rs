@@ -71,6 +71,12 @@ macro_rules! text_enum {
                 <&'q str as sqlx::Encode<'q, sqlx::Postgres>>::encode(self.as_str(), buf)
             }
         }
+
+        impl serde::Serialize for $name {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                s.serialize_str(self.as_str())
+            }
+        }
     };
 }
 
@@ -88,7 +94,7 @@ text_enum!(
 );
 
 /// A measurement station as stored (with its generated `id` and `created_at`).
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct Station {
     pub id: i64,
     pub source: String,
@@ -98,6 +104,7 @@ pub struct Station {
     pub kind: StationKind,
     pub lat: f64,
     pub lon: f64,
+    #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
@@ -113,16 +120,17 @@ pub struct NewStation {
     pub lon: f64,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct Threshold {
     pub station_id: i64,
     pub level: AlertLevel,
     pub value_m: f64,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
 pub struct Observation {
     pub station_id: i64,
+    #[serde(with = "time::serde::rfc3339")]
     pub ts: OffsetDateTime,
     pub metric: Metric,
     pub value: f64,
@@ -252,7 +260,8 @@ pub async fn upsert_observations(
     Ok(rows.len())
 }
 
-/// A station's series for one metric over `[from, to]`, ordered by time.
+/// A station's series for one metric over `[from, to]`, ordered by time. Capped at a
+/// large bound; the read API uses [`observations_in_range_limited`] for explicit paging.
 pub async fn observations_in_range(
     pool: &PgPool,
     station_id: i64,
@@ -260,15 +269,28 @@ pub async fn observations_in_range(
     from: OffsetDateTime,
     to: OffsetDateTime,
 ) -> sqlx::Result<Vec<Observation>> {
+    observations_in_range_limited(pool, station_id, metric, from, to, 100_000).await
+}
+
+/// As [`observations_in_range`] but with an explicit row cap (bounded pagination for the API).
+pub async fn observations_in_range_limited(
+    pool: &PgPool,
+    station_id: i64,
+    metric: Metric,
+    from: OffsetDateTime,
+    to: OffsetDateTime,
+    limit: i64,
+) -> sqlx::Result<Vec<Observation>> {
     sqlx::query_as::<_, Observation>(
         "SELECT station_id, ts, metric, value FROM observation
          WHERE station_id = $1 AND metric = $2 AND ts >= $3 AND ts <= $4
-         ORDER BY ts",
+         ORDER BY ts LIMIT $5",
     )
     .bind(station_id)
     .bind(metric)
     .bind(from)
     .bind(to)
+    .bind(limit)
     .fetch_all(pool)
     .await
 }
