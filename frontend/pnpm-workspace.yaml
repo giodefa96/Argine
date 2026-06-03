@@ -4,3 +4,8 @@
 # else is blocked by default (supply-chain defense, SECURITY.md §13).
 onlyBuiltDependencies:
   - esbuild
+# Acknowledged but intentionally NOT built: msw's postinstall only writes the browser
+# service worker (mockServiceWorker.js), which we don't use — tests mock at the node layer
+# (Vitest) and via Playwright route interception.
+allowBuilds:
+  msw: false

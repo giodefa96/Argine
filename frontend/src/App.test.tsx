@@ -1,13 +1,26 @@
-import { render, screen } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { screen } from '@testing-library/react'
+import { expect, test, vi } from 'vitest'
 import App from './App'
+import { renderWithClient } from './test/utils'
+
+// App renders the chart subtree, which pulls in uPlot (canvas, unsupported in jsdom).
+vi.mock('uplot', () => ({
+  default: class {
+    destroy() {}
+  },
+}))
 
 test('renders the Argine heading', () => {
-  render(<App />)
+  renderWithClient(<App />)
   expect(screen.getByRole('heading', { name: /argine/i })).toBeInTheDocument()
 })
 
 test('mentions the Seveso', () => {
-  render(<App />)
+  renderWithClient(<App />)
   expect(screen.getByRole('main')).toHaveTextContent(/seveso/i)
+})
+
+test('lists a station from the API', async () => {
+  renderWithClient(<App />)
+  expect(await screen.findByRole('option', { name: 'Milano Niguarda' })).toBeInTheDocument()
 })
