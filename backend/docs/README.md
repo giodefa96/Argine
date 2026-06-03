@@ -12,6 +12,8 @@ same PR — docs drift is treated as a bug.
 - `features/` — one document per feature:
   - [`config-and-startup.md`](./features/config-and-startup.md)
   - [`health.md`](./features/health.md)
+  - [`persistence.md`](./features/persistence.md)
+  - [`domain-model.md`](./features/domain-model.md)
 
 ## Feature doc template
 Each `features/<name>.md` should cover:

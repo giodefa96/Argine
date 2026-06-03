@@ -18,6 +18,7 @@ components are marked as such.
 | entry  | `src/main.rs`   | wiring: tracing, pool, migrations, router, server |
 | lib    | `src/lib.rs`    | `AppState`, `router()`, handlers |
 | config | `src/config.rs` | env-driven config + startup validation |
+| domain | `src/domain.rs` | entity types + thin repository (parameterized queries) |
 
 ## HTTP surface (current)
 | Method | Path      | Handler  | Description |
@@ -29,6 +30,39 @@ components are marked as such.
 PostgreSQL + **TimescaleDB** via `sqlx::PgPool` (shared in `AppState`). Migrations in
 `backend/migrations/`, embedded by `sqlx::migrate!()` and applied at startup. See
 [`features/persistence.md`](./features/persistence.md).
+
+### Domain schema
+Core entities (migration `0002_domain_model.sql`). `observation` is a TimescaleDB
+**hypertable** partitioned on `ts`; its natural key `(station_id, metric, ts)` makes
+ingestion idempotent. See [`features/domain-model.md`](./features/domain-model.md).
+
+```mermaid
+erDiagram
+    STATION ||--o{ THRESHOLD : "has"
+    STATION ||--o{ OBSERVATION : "records"
+    STATION {
+        bigint id PK
+        text source "e.g. arpa_lombardia"
+        text external_id "unique per source"
+        text name
+        text river
+        text kind "hydrometric | rain"
+        float lat
+        float lon
+        timestamptz created_at
+    }
+    THRESHOLD {
+        bigint station_id FK
+        text level "yellow | orange | red"
+        float value_m
+    }
+    OBSERVATION {
+        bigint station_id FK
+        timestamptz ts "hypertable partition"
+        text metric "level_m | rain_mm"
+        float value
+    }
+```
 
 ## Configuration
 Read from environment (see [`features/config-and-startup.md`](./features/config-and-startup.md)):
