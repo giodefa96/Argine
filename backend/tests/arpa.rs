@@ -64,9 +64,11 @@ async fn poll_once_seeds_stations_and_stores_observations(pool: PgPool) {
 }
 
 #[sqlx::test]
-async fn backfill_pages_until_empty(pool: PgPool) {
+async fn backfill_pages_past_sentinel_only_page_until_raw_empty(pool: PgPool) {
     let server = MockServer::start().await;
-    // Page 0 yields one historical row per sensor; page 1000 is empty → loop terminates.
+    // Per sensor: page 0 is a full page that normalizes to nothing (all-sentinel outage),
+    // page 1000 has a valid row, page 2000 is the real (raw-empty) end. Backfill must NOT
+    // stop at page 0 just because it normalized empty — it terminates on the raw count.
     for s in arpa::SEVESO_STATIONS {
         Mock::given(method("GET"))
             .and(path("/3e8b-w7ay.json"))
@@ -75,6 +77,17 @@ async fn backfill_pages_until_empty(pool: PgPool) {
             .respond_with(ResponseTemplate::new(200).set_body_json(one_row(
                 s.sensor_id,
                 "2021-01-01T00:00:00.000",
+                "-9999", // sentinel → dropped by normalize, but raw count is 1
+            )))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/3e8b-w7ay.json"))
+            .and(query_param("idsensore", s.sensor_id))
+            .and(query_param("$offset", "1000"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(one_row(
+                s.sensor_id,
+                "2021-01-01T00:10:00.000",
                 "50",
             )))
             .mount(&server)
@@ -82,14 +95,17 @@ async fn backfill_pages_until_empty(pool: PgPool) {
     }
     Mock::given(method("GET"))
         .and(path("/3e8b-w7ay.json"))
-        .and(query_param("$offset", "1000"))
+        .and(query_param("$offset", "2000"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
         .mount(&server)
         .await;
     let client = ArpaClient::new(server.uri());
 
     let stored = arpa::backfill(&pool, &client).await.unwrap();
-    assert_eq!(stored, 3);
+    assert_eq!(
+        stored, 3,
+        "the valid row on page 1000 must survive the empty page 0"
+    );
 
     let stations = domain::list_stations(&pool).await.unwrap();
     let cantu = stations.iter().find(|s| s.external_id == "8119").unwrap();

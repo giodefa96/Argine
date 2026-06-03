@@ -159,12 +159,14 @@ impl ArpaClient {
         Ok(normalize(&rows))
     }
 
-    /// One page of the historical series for a sensor, ordered ascending by time.
+    /// One page of the historical series for a sensor, ordered ascending by time. Returns
+    /// `(raw_row_count, observations)`: the raw count drives backfill termination, since a
+    /// page can be non-empty yet normalize to nothing (e.g. an outage of all-sentinel rows).
     async fn fetch_history_page(
         &self,
         sensor_id: &str,
         offset: u32,
-    ) -> Result<Vec<ParsedObs>, reqwest::Error> {
+    ) -> Result<(usize, Vec<ParsedObs>), reqwest::Error> {
         let (limit, offset) = (PAGE.to_string(), offset.to_string());
         let rows = self
             .get(
@@ -177,7 +179,7 @@ impl ArpaClient {
                 ],
             )
             .await?;
-        Ok(normalize(&rows))
+        Ok((rows.len(), normalize(&rows)))
     }
 }
 
@@ -204,21 +206,20 @@ pub async fn seed_stations(pool: &PgPool) -> Result<HashMap<String, i64>, sqlx::
 }
 
 /// Store observations, mapping `sensor_id → station.id`. Rows for unknown sensors are
-/// skipped. Returns the number stored. Idempotent (upsert on `(station, metric, ts)`).
+/// skipped. Batched (one query per ≤1000 rows). Idempotent (upsert on `(station, metric, ts)`).
 async fn store(
     pool: &PgPool,
     map: &HashMap<String, i64>,
     obs: &[ParsedObs],
 ) -> Result<usize, sqlx::Error> {
-    let mut stored = 0;
-    for o in obs {
-        let Some(&station_id) = map.get(&o.sensor_id) else {
-            continue;
-        };
-        domain::upsert_observation(pool, station_id, o.ts, Metric::LevelM, o.value_m).await?;
-        stored += 1;
-    }
-    Ok(stored)
+    let batch: Vec<(i64, OffsetDateTime, Metric, f64)> = obs
+        .iter()
+        .filter_map(|o| {
+            map.get(&o.sensor_id)
+                .map(|&id| (id, o.ts, Metric::LevelM, o.value_m))
+        })
+        .collect();
+    domain::upsert_observations(pool, &batch).await
 }
 
 /// One forward-poll cycle: seed stations, then store the recent window for each.
@@ -240,9 +241,10 @@ pub async fn backfill(pool: &PgPool, client: &ArpaClient) -> Result<usize, Inges
     for s in SEVESO_STATIONS {
         let mut offset = 0;
         loop {
-            let page = client.fetch_history_page(s.sensor_id, offset).await?;
-            if page.is_empty() {
-                break;
+            let (raw, page) = client.fetch_history_page(s.sensor_id, offset).await?;
+            if raw == 0 {
+                break; // Socrata returned no more rows — done (a page may be non-empty yet
+                       // normalize to nothing, so terminate on the raw count, not `page`).
             }
             total += store(pool, &map, &page).await?;
             offset += PAGE;
