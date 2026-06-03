@@ -26,9 +26,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 # No TLS feature: local/compose Postgres connects over the internal network without TLS.
 # Add a tls feature when connecting to a managed DB over the public internet.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "macros", "migrate", "time"] }
-# Maps Postgres timestamptz (observation.ts, station.created_at) to time::OffsetDateTime;
-# parsing/macros decode ARPA's naive "YYYY-MM-DDTHH:MM:SS.sss" timestamps.
-time = { version = "0.3", features = ["macros", "parsing"] }
+# Maps Postgres timestamptz to time::OffsetDateTime; parsing/macros decode ARPA's naive
+# timestamps; serde-well-known (de)serializes API timestamps as RFC 3339.
+time = { version = "0.3", features = ["macros", "parsing", "serde-well-known"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

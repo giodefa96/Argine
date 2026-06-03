@@ -20,12 +20,18 @@ components are marked as such.
 | config | `src/config.rs` | env-driven config + startup validation |
 | domain | `src/domain.rs` | entity types + thin repository (parameterized queries) |
 | arpa   | `src/arpa.rs`   | ARPA hydrometry ingestion: client, normalize, poll, backfill |
+| api    | `src/api.rs`    | public read endpoints (stations, observations) + input validation |
 
 ## HTTP surface (current)
 | Method | Path      | Handler  | Description |
 |--------|-----------|----------|-------------|
 | GET    | `/health` | `health` | liveness probe → `{"status":"ok"}` (no dependencies) |
 | GET    | `/ready`  | `ready`  | readiness → `200 {"status":"ready"}` if DB reachable, else `503` |
+| GET    | `/stations` | `api::list_stations` | all stations |
+| GET    | `/stations/{id}` | `api::get_station` | station + thresholds (404 if unknown) |
+| GET    | `/stations/{id}/observations` | `api::station_observations` | series; `?from&to&limit&metric`, bounded |
+
+See [`features/read-api.md`](./features/read-api.md) for the full contract and validation rules.
 
 ## Persistence
 PostgreSQL + **TimescaleDB** via `sqlx::PgPool` (shared in `AppState`). Migrations in
