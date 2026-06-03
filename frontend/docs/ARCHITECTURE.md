@@ -18,10 +18,11 @@ tracks the _implemented_ structure; planned pieces are marked as such.
 ## Testing
 
 - **Unit/component:** **Vitest** + Testing Library (jsdom). Setup in `src/test/setup.ts`
-  (jest-dom matchers + per-test cleanup). Example: `src/App.test.tsx`. Coverage via v8.
+  (jest-dom matchers + per-test cleanup + MSW server lifecycle). Coverage via v8.
+- **API mocking:** **MSW** (`src/test/server.ts`, `handlers.ts`) intercepts backend calls in
+  node — no real API in tests. E2E mocks at the network layer via Playwright `page.route`.
 - **E2E:** **Playwright**, critical journeys only, under `e2e/` (`playwright.config.ts`
-  builds + previews the app). Example: `e2e/app.spec.ts`.
-- Mock the backend API (MSW) once data fetching lands — no real API calls in tests.
+  builds + previews the app). Examples: `e2e/app.spec.ts`, `e2e/chart.spec.ts`.
 - Run: `pnpm test` / `pnpm test:e2e` (or `make test-frontend` / `make e2e`).
 
 ## Entry flow
@@ -34,19 +35,30 @@ flowchart LR
 
 ## Structure (current)
 
-| File                | Responsibility                                  |
-| ------------------- | ----------------------------------------------- |
-| `index.html`        | HTML host, mounts `#root`, loads `src/main.tsx` |
-| `src/main.tsx`      | React root, `StrictMode`                        |
-| `src/App.tsx`       | top-level component (placeholder landing)       |
-| `src/vite-env.d.ts` | Vite client type refs                           |
+| File                              | Responsibility                                          |
+| --------------------------------- | ------------------------------------------------------- |
+| `index.html`                      | HTML host, mounts `#root`, loads `src/main.tsx`         |
+| `src/main.tsx`                    | React root, `StrictMode`, `QueryClientProvider`         |
+| `src/App.tsx`                     | station selector + level view                           |
+| `src/lib/api.ts`                  | typed client for the backend read API (`VITE_API_URL`)  |
+| `src/hooks/queries.ts`            | TanStack Query hooks (`useStations`, `useObservations`) |
+| `src/components/LevelChart.tsx`   | uPlot time-series wrapper                               |
+| `src/components/StationLevel.tsx` | loads + renders one station's series (states)           |
+| `src/test/*`                      | MSW server/handlers + render helper                     |
+| `src/vite-env.d.ts`               | Vite client type refs                                   |
+
+## Data layer
+
+**TanStack Query** wraps a small typed client (`src/lib/api.ts`) over the backend read API.
+Base URL from `VITE_API_URL` (defaults to `http://localhost:8080`). The backend's
+`CORS_ORIGINS` must include the frontend origin (`http://localhost:5173` for dev). See
+[`features/level-chart.md`](./features/level-chart.md).
 
 ## Planned components (not yet implemented)
 
 Tracked in [`IDEAS.md`](../../IDEAS.md); each gets a `features/` doc when built:
 
-- Data layer: **TanStack Query** against the backend REST API.
-- Charts: **uPlot** (river level / forecast time series).
 - Map: **MapLibre GL** (stations + dynamic risk zones + PGRA/PAI layers).
+- Forecast overlay on the level chart; alerts view.
 - **PWA** + Web Push for alerts.
 - Routing, styling (**Tailwind**).

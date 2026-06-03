@@ -12,6 +12,7 @@ same PR — docs drift is treated as a bug.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — tooling, entry flow, structure, planned components.
 - `features/` — one document per feature:
   - [`app-shell.md`](./features/app-shell.md)
+  - [`level-chart.md`](./features/level-chart.md)
 
 ## Feature doc template
 
