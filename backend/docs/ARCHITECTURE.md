@@ -19,6 +19,7 @@ components are marked as such.
 | lib    | `src/lib.rs`    | `AppState`, `router()`, handlers |
 | config | `src/config.rs` | env-driven config + startup validation |
 | domain | `src/domain.rs` | entity types + thin repository (parameterized queries) |
+| arpa   | `src/arpa.rs`   | ARPA hydrometry ingestion: client, normalize, poll, backfill |
 
 ## HTTP surface (current)
 | Method | Path      | Handler  | Description |
@@ -87,9 +88,15 @@ Read from environment (see [`features/config-and-startup.md`](./features/config-
 - Run with `cargo test` (or `make test-backend`). Coverage via `cargo llvm-cov` in CI.
 - External APIs (ARPA, Open-Meteo) must be mocked (`wiremock`) — never called in tests.
 
+## Ingestion
+A background `tokio::time::interval` task (spawned in `main.rs`) polls **ARPA hydrometry** hourly
+and upserts `observation` rows; `argine-backend backfill` runs a one-shot historical import. HTTP
+is `reqwest` (rustls). See [`features/arpa-ingestion.md`](./features/arpa-ingestion.md) and the
+data-source / latency notes in [`DATA_SOURCES.md`](../../DATA_SOURCES.md).
+
 ## Planned components (not yet implemented)
 Tracked in [`IDEAS.md`](../../IDEAS.md); each will get a `features/` doc when built:
-- Ingestion scheduler (`tokio-cron-scheduler`): ARPA hydrometry + Open-Meteo.
+- Open-Meteo rain-forecast ingestion (next ingestion source).
 - Forecast engine: baseline (lag-based) → ML inference via **ONNX** (`ort`/`tract`).
 - Alert engine + notification channels (SSE, Telegram, Web Push).
 - Auth (JWT + Argon2) for admin/write endpoints.
