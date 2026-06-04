@@ -3,6 +3,9 @@ import { expect, test, vi } from 'vitest'
 import App from './App'
 import { renderWithClient } from './test/utils'
 
+// App renders the map (maplibre needs WebGL, absent in jsdom — see src/test/maplibre-mock.ts).
+vi.mock('maplibre-gl', async () => (await import('./test/maplibre-mock')).maplibreMock())
+
 // App renders the chart subtree, which pulls in uPlot (canvas, unsupported in jsdom).
 vi.mock('uplot', () => {
   class U {

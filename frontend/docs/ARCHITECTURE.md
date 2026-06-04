@@ -39,12 +39,14 @@ flowchart LR
 | --------------------------------- | ------------------------------------------------------- |
 | `index.html`                      | HTML host, mounts `#root`, loads `src/main.tsx`         |
 | `src/main.tsx`                    | React root, `StrictMode`, `QueryClientProvider`         |
-| `src/App.tsx`                     | station selector + level view                           |
+| `src/App.tsx`                     | map + station selector + level view                     |
 | `src/lib/api.ts`                  | typed client for the backend read API (`VITE_API_URL`)  |
 | `src/hooks/queries.ts`            | TanStack Query hooks (`useStations`, `useObservations`) |
+| `src/components/MapView.tsx`      | MapLibre map: river line + station markers (selection)  |
 | `src/components/LevelChart.tsx`   | uPlot time-series wrapper                               |
 | `src/components/StationLevel.tsx` | loads + renders one station's series (states)           |
-| `src/test/*`                      | MSW server/handlers + render helper                     |
+| `src/assets/seveso-river.json`    | Seveso course GeoJSON (one-off OSM extract, committed)  |
+| `src/test/*`                      | MSW server/handlers + render helper + maplibre mock     |
 | `src/vite-env.d.ts`               | Vite client type refs                                   |
 
 ## Data layer
@@ -54,11 +56,17 @@ Base URL from `VITE_API_URL` (defaults to `http://localhost:8080`). The backend'
 `CORS_ORIGINS` must include the frontend origin (`http://localhost:5173` for dev). See
 [`features/level-chart.md`](./features/level-chart.md).
 
+## Map
+
+**MapLibre GL** map of the Seveso (river course + station markers, synced with the station
+selection). OSM raster tiles for now; risk layers come with Phase 3. See
+[`features/map-view.md`](./features/map-view.md).
+
 ## Planned components (not yet implemented)
 
 Tracked in [`IDEAS.md`](../../IDEAS.md); each gets a `features/` doc when built:
 
-- Map: **MapLibre GL** (stations + dynamic risk zones + PGRA/PAI layers).
+- Map risk layers: dynamic flood zones (HAND) + official PGRA/PAI layers (IDEAS.md §6-bis).
 - Forecast overlay on the level chart; alerts view.
 - **PWA** + Web Push for alerts.
 - Routing, styling (**Tailwind**).

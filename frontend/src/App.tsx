@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import MapView from './components/MapView'
 import StationLevel from './components/StationLevel'
 import { useStations } from './hooks/queries'
 
@@ -18,6 +19,7 @@ export default function App() {
 
       {stations && stations.length > 0 && (
         <>
+          <MapView stations={stations} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
           <label htmlFor="station-select">
             Stazione:{' '}
             <select
