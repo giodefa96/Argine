@@ -38,6 +38,9 @@ are validated and bounded.
 Observations query params (all optional): `from`, `to` (RFC 3339; default = last 30 days),
 `limit` (default 1000, max 10000), `metric` (`level_m` default | `rain_mm`),
 `bucket` (`1h` | `6h` | `1d` — aggregate per bucket: level avg, rain sum).
+When a raw window holds more than `limit` points, the **most recent** ones are kept (still
+ascending) — a "last N days" chart must never lose its newest tail (sensor cadence varies:
+Niguarda 5-minute, others 10-minute).
 Errors: `400` bad param / `from > to`; `404` unknown station; `500` generic (logged).
 
 ## Testing

@@ -24,10 +24,11 @@ type PeriodKey = (typeof PERIODS)[number]['key']
 function windowFor(key: PeriodKey) {
   const period = PERIODS.find((p) => p.key === key) ?? PERIODS[0]
   const bucket: ObservationParams['bucket'] = 'bucket' in period ? period.bucket : undefined
-  // Raw 10-minute cadence ≈ 6 points/hour (with headroom); bucketed periods need one point
-  // per bucket. Either way the API caps at 10k.
+  // Raw cadence varies per sensor — Niguarda publishes every 5 minutes (12 points/hour),
+  // the others every 10 — so size for the densest with headroom; bucketed periods need one
+  // point per bucket. Either way the API caps at 10k (and keeps the most recent points).
   const points =
-    bucket === '1d' ? period.hours / 24 : bucket === '6h' ? period.hours / 6 : period.hours * 7
+    bucket === '1d' ? period.hours / 24 : bucket === '6h' ? period.hours / 6 : period.hours * 13
   return {
     key: period.key,
     from: new Date(Date.now() - period.hours * 3_600_000).toISOString(),

@@ -384,7 +384,11 @@ pub async fn observations_bucketed(
     .await
 }
 
-/// As [`observations_in_range`] but with an explicit row cap (bounded pagination for the API).
+/// As [`observations_in_range`] but with an explicit row cap (bounded pagination for the
+/// API). When the window holds more than `limit` points, the **most recent** ones win
+/// (inner DESC limit, outer ASC) — a chart of "the last N days" must never lose its most
+/// recent tail to truncation (sensor cadence varies: Niguarda publishes every 5 minutes,
+/// the others every 10).
 pub async fn observations_in_range_limited(
     pool: &PgPool,
     station_id: i64,
@@ -394,9 +398,13 @@ pub async fn observations_in_range_limited(
     limit: i64,
 ) -> sqlx::Result<Vec<Observation>> {
     sqlx::query_as::<_, Observation>(
-        "SELECT station_id, ts, metric, value FROM observation
-         WHERE station_id = $1 AND metric = $2 AND ts >= $3 AND ts <= $4
-         ORDER BY ts LIMIT $5",
+        r#"
+        SELECT station_id, ts, metric, value FROM (
+            SELECT station_id, ts, metric, value FROM observation
+            WHERE station_id = $1 AND metric = $2 AND ts >= $3 AND ts <= $4
+            ORDER BY ts DESC LIMIT $5
+        ) latest ORDER BY ts
+        "#,
     )
     .bind(station_id)
     .bind(metric)

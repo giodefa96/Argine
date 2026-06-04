@@ -121,7 +121,8 @@ async fn observations_in_range_and_limit(pool: PgPool) {
     assert_eq!(arr[0]["value"], 0.5);
     assert_eq!(arr[0]["metric"], "level_m");
 
-    // limit caps the result.
+    // limit caps the result, keeping the MOST RECENT points (a "last N days" chart must
+    // never lose its newest tail to truncation), still in ascending order.
     let (_, body) = get(
         &pool,
         &format!(
@@ -130,7 +131,10 @@ async fn observations_in_range_and_limit(pool: PgPool) {
         ),
     )
     .await;
-    assert_eq!(body.as_array().unwrap().len(), 2);
+    let arr = body.as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["value"], 0.7);
+    assert_eq!(arr[1]["value"], 0.9);
 }
 
 #[sqlx::test]
