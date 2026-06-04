@@ -5,6 +5,7 @@ pub mod api;
 pub mod arpa;
 pub mod config;
 pub mod domain;
+pub mod open_meteo;
 
 use axum::extract::State;
 use axum::http::StatusCode;

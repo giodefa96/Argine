@@ -53,8 +53,8 @@ with `wiremock` — the real ARPA endpoint is never called in CI (CLAUDE.md).
 
 ## Status
 
-**Implemented** for ARPA level + co-located rainfall. Open-Meteo (forecast + ERA5 archive) rain is
-the next feature.
+**Implemented** for ARPA level + co-located rainfall. Forecast rain is ingested from Open-Meteo —
+see [`weather-ingestion.md`](./weather-ingestion.md) (ERA5 archive still open there).
 
 ## Open questions
 

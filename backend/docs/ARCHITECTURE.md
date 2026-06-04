@@ -20,6 +20,7 @@ components are marked as such.
 | config | `src/config.rs` | env-driven config + startup validation |
 | domain | `src/domain.rs` | entity types + thin repository (parameterized queries) |
 | arpa   | `src/arpa.rs`   | ARPA hydrometry ingestion: client, normalize, poll, backfill |
+| open_meteo | `src/open_meteo.rs` | Open-Meteo rain-forecast ingestion: client, normalize, poll |
 | api    | `src/api.rs`    | public read endpoints (stations, observations) + input validation |
 
 ## HTTP surface (current)
@@ -39,14 +40,17 @@ PostgreSQL + **TimescaleDB** via `sqlx::PgPool` (shared in `AppState`). Migratio
 [`features/persistence.md`](./features/persistence.md).
 
 ### Domain schema
-Core entities (migration `0002_domain_model.sql`). `observation` is a TimescaleDB
-**hypertable** partitioned on `ts`; its natural key `(station_id, metric, ts)` makes
-ingestion idempotent. See [`features/domain-model.md`](./features/domain-model.md).
+Core entities (migrations `0002_domain_model.sql`, `0003_weather_forecast.sql`).
+`observation` and `weather_forecast` are TimescaleDB **hypertables** partitioned on `ts`;
+their natural keys make ingestion idempotent. See
+[`features/domain-model.md`](./features/domain-model.md) and
+[`features/weather-ingestion.md`](./features/weather-ingestion.md).
 
 ```mermaid
 erDiagram
     STATION ||--o{ THRESHOLD : "has"
     STATION ||--o{ OBSERVATION : "records"
+    STATION ||--o{ WEATHER_FORECAST : "forecast at"
     STATION {
         bigint id PK
         text source "e.g. arpa_lombardia"
@@ -68,6 +72,13 @@ erDiagram
         timestamptz ts "hypertable partition"
         text metric "level_m | rain_mm"
         float value
+    }
+    WEATHER_FORECAST {
+        bigint station_id FK
+        timestamptz run_ts "forecast issue time; every run kept"
+        timestamptz ts "hypertable partition"
+        float rain_mm
+        text model "e.g. best_match"
     }
 ```
 
@@ -95,15 +106,18 @@ Read from environment (see [`features/config-and-startup.md`](./features/config-
 - External APIs (ARPA, Open-Meteo) must be mocked (`wiremock`) — never called in tests.
 
 ## Ingestion
-A background `tokio::time::interval` task (spawned in `main.rs`) polls **ARPA** hourly and upserts
-`observation` rows — river **level** plus co-located **rainfall** (`rain_mm`) per station;
-`argine-backend backfill` runs a one-shot historical import. HTTP is `reqwest` (rustls). See
-[`features/arpa-ingestion.md`](./features/arpa-ingestion.md) and the
-data-source / latency notes in [`DATA_SOURCES.md`](../../DATA_SOURCES.md).
+Two background `tokio::time::interval` tasks (spawned in `main.rs`), both hourly, HTTP via
+`reqwest` (rustls):
+- **ARPA** poll → upserts `observation` rows — river **level** plus co-located **rainfall**
+  (`rain_mm`) per station; `argine-backend backfill` runs a one-shot historical import. See
+  [`features/arpa-ingestion.md`](./features/arpa-ingestion.md) and the data-source / latency
+  notes in [`DATA_SOURCES.md`](../../DATA_SOURCES.md).
+- **Open-Meteo** poll → stores one `weather_forecast` **run** per station per tick (keyed by
+  `run_ts`; every run kept for backtesting). See
+  [`features/weather-ingestion.md`](./features/weather-ingestion.md).
 
 ## Planned components (not yet implemented)
 Tracked in [`IDEAS.md`](../../IDEAS.md); each will get a `features/` doc when built:
-- Open-Meteo rain-forecast ingestion (next ingestion source).
 - Forecast engine: baseline (lag-based) → ML inference via **ONNX** (`ort`/`tract`).
 - Alert engine + notification channels (SSE, Telegram, Web Push).
 - Auth (JWT + Argon2) for admin/write endpoints.

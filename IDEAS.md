@@ -237,7 +237,7 @@ translated to our Rust/React/Docker stack.
 **MVP (week 1–2)**
 - [ ] Minimal Axum backend + Postgres/TimescaleDB.
 - [ ] Seveso hydrometry ingestion from ARPA (1 station).
-- [ ] Rain forecast ingestion from Open-Meteo for the basin.
+- [x] Rain forecast ingestion from Open-Meteo for the basin.
 - [ ] `/stations/{id}/observations` endpoint.
 - [ ] React FE: 1 level chart + latest rain forecasts.
 - [ ] Security baseline: `.env.example` + startup fail-fast on default secrets + CORS allowlist + TLS proxy (see `SECURITY.md`).
