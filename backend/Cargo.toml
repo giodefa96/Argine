@@ -34,3 +34,5 @@ time = { version = "0.3", features = ["macros", "parsing", "serde-well-known"] }
 tower = { version = "0.5", features = ["util"] }
 # Mock the ARPA HTTP API in tests — never hit the real endpoint in CI (CLAUDE.md).
 wiremock = "0.6"
+# Property tests for the forecast invariants (more rain ⇒ never-lower level, CLAUDE.md).
+proptest = "1"

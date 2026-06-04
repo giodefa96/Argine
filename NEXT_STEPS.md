@@ -61,8 +61,8 @@ flow: `git flow feature start <name>` → code **+** tests **+** `docs/features/
 ---
 
 ## Phase 1 — forecast & alerts (after MVP)
-- **Baseline forecast:** lag-based model in Rust + `GET /stations/{id}/forecast`
-  (`proptest` invariants: more rain ⇒ never-lower predicted level).
+- **Baseline forecast** ✅: lag-based model in Rust + `GET /stations/{id}/forecast`
+  (`proptest` invariants: more rain ⇒ never-lower predicted level). α/β still uncalibrated.
 - **Alert engine:** compare forecast vs thresholds → `alert`; SSE stream + **Telegram** bot.
 - **PWA + Web Push:** installable frontend, push notifications for alerts.
 

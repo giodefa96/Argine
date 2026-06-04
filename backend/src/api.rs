@@ -14,11 +14,14 @@ use time::format_description::well_known::Rfc3339;
 use time::{Duration, OffsetDateTime};
 
 use crate::domain::{self, Metric, Observation, Station, Threshold};
+use crate::forecast;
 use crate::AppState;
 
 const DEFAULT_LIMIT: i64 = 1000;
 const MAX_LIMIT: i64 = 10_000;
 const DEFAULT_WINDOW_DAYS: i64 = 30;
+const DEFAULT_FORECAST_HOURS: i64 = 12;
+const MAX_FORECAST_HOURS: i64 = 48;
 
 /// Errors surfaced as JSON. DB errors are logged and collapsed to a generic 500.
 pub enum ApiError {
@@ -121,4 +124,30 @@ pub async fn station_observations(
 
     let obs = domain::observations_in_range_limited(&s.pool, id, metric, from, to, limit).await?;
     Ok(Json(obs))
+}
+
+/// Query params for the forecast endpoint.
+#[derive(Deserialize)]
+pub struct ForecastQuery {
+    hours: Option<i64>,
+}
+
+/// `GET /stations/{id}/forecast?hours` — baseline predicted level for the next hours.
+///
+/// Defaults: `hours=12` (1..=48). 404 if the station is unknown, 400 on a bad horizon.
+/// `points` is empty (`based_on` null) while the station has no level or no weather run.
+pub async fn station_forecast(
+    State(s): State<AppState>,
+    Path(id): Path<i64>,
+    Query(q): Query<ForecastQuery>,
+) -> Result<Json<forecast::StationForecast>, ApiError> {
+    if domain::get_station(&s.pool, id).await?.is_none() {
+        return Err(ApiError::NotFound);
+    }
+    let hours = q.hours.unwrap_or(DEFAULT_FORECAST_HOURS);
+    if !(1..=MAX_FORECAST_HOURS).contains(&hours) {
+        return Err(ApiError::BadRequest("hours must be between 1 and 48"));
+    }
+    let fc = forecast::for_station(&s.pool, id, hours as usize, OffsetDateTime::now_utc()).await?;
+    Ok(Json(fc))
 }

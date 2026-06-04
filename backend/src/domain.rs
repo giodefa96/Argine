@@ -272,6 +272,23 @@ pub async fn upsert_observations(
     Ok(rows.len())
 }
 
+/// The most recent observation of one metric at a station, if any. The freshness anchor
+/// for the baseline forecast (the ARPA level lags ~18 h — see DATA_SOURCES.md).
+pub async fn latest_observation(
+    pool: &PgPool,
+    station_id: i64,
+    metric: Metric,
+) -> sqlx::Result<Option<Observation>> {
+    sqlx::query_as::<_, Observation>(
+        "SELECT station_id, ts, metric, value FROM observation
+         WHERE station_id = $1 AND metric = $2 ORDER BY ts DESC LIMIT 1",
+    )
+    .bind(station_id)
+    .bind(metric)
+    .fetch_optional(pool)
+    .await
+}
+
 /// Batch-upsert forecast points for one `(station, model, run_ts)` run, chunked like
 /// [`upsert_observations`]. Idempotent on `(station, model, run_ts, ts)` — re-ingesting
 /// the same run overwrites it; a new `run_ts` is kept as a separate run (for backtesting).

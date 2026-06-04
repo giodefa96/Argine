@@ -21,7 +21,8 @@ components are marked as such.
 | domain | `src/domain.rs` | entity types + thin repository (parameterized queries) |
 | arpa   | `src/arpa.rs`   | ARPA hydrometry ingestion: client, normalize, poll, backfill |
 | open_meteo | `src/open_meteo.rs` | Open-Meteo rain-forecast ingestion: client, normalize, poll |
-| api    | `src/api.rs`    | public read endpoints (stations, observations) + input validation |
+| forecast | `src/forecast.rs` | baseline level forecast: pure model + per-station assembly |
+| api    | `src/api.rs`    | public read endpoints (stations, observations, forecast) + input validation |
 
 ## HTTP surface (current)
 | Method | Path      | Handler  | Description |
@@ -31,6 +32,7 @@ components are marked as such.
 | GET    | `/stations` | `api::list_stations` | all stations |
 | GET    | `/stations/{id}` | `api::get_station` | station + thresholds (404 if unknown) |
 | GET    | `/stations/{id}/observations` | `api::station_observations` | series; `?from&to&limit&metric`, bounded |
+| GET    | `/stations/{id}/forecast` | `api::station_forecast` | baseline predicted level; `?hours` (1..=48, default 12) |
 
 See [`features/read-api.md`](./features/read-api.md) for the full contract and validation rules.
 
@@ -116,9 +118,15 @@ Two background `tokio::time::interval` tasks (spawned in `main.rs`), both hourly
   `run_ts`; every run kept for backtesting). See
   [`features/weather-ingestion.md`](./features/weather-ingestion.md).
 
+## Forecast
+`src/forecast.rs` computes the **baseline** level forecast on demand (no ML, nothing stored):
+latest observed level + α·cumulative forecast rain − β·drainage, from the latest Open-Meteo
+run. α/β are uncalibrated placeholders; the "more rain ⇒ never-lower level" invariant is
+property-tested. See [`features/baseline-forecast.md`](./features/baseline-forecast.md).
+
 ## Planned components (not yet implemented)
 Tracked in [`IDEAS.md`](../../IDEAS.md); each will get a `features/` doc when built:
-- Forecast engine: baseline (lag-based) → ML inference via **ONNX** (`ort`/`tract`).
+- Forecast engine, Phase 2: calibration + ML inference via **ONNX** (`ort`/`tract`).
 - Alert engine + notification channels (SSE, Telegram, Web Push).
 - Auth (JWT + Argon2) for admin/write endpoints.
 
