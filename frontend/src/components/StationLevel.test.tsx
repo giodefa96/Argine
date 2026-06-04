@@ -1,7 +1,7 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
-import { sampleStations } from '../test/handlers'
+import { sampleObservations, sampleStations } from '../test/handlers'
 import { server } from '../test/server'
 import { renderWithClient } from '../test/utils'
 import StationLevel from './StationLevel'
@@ -45,5 +45,30 @@ describe('StationLevel', () => {
     )
     renderWithClient(<StationLevel station={station} />)
     expect(await screen.findByRole('alert')).toHaveTextContent(/Errore/)
+  })
+
+  it('changing the period re-queries with a wider window', async () => {
+    const froms: string[] = []
+    server.use(
+      http.get('http://localhost:8080/stations/:id/observations', ({ request }) => {
+        const url = new URL(request.url)
+        froms.push(url.searchParams.get('from') ?? '')
+        return HttpResponse.json(sampleObservations)
+      }),
+    )
+    renderWithClient(<StationLevel station={station} />)
+    await screen.findByText(/Ultimo livello/)
+
+    fireEvent.change(screen.getByRole('combobox', { name: /periodo/i }), {
+      target: { value: '7d' },
+    })
+    await screen.findByText(/Ultimo livello/)
+    await waitFor(() => expect(froms.length).toBeGreaterThan(2))
+
+    const dayMs = 24 * 3_600_000
+    const first = Date.now() - new Date(froms[0]).getTime()
+    const widened = Date.now() - new Date(froms[froms.length - 1]).getTime()
+    expect(first).toBeLessThan(2 * dayMs) // 24h window
+    expect(widened).toBeGreaterThan(6 * dayMs) // 7-day window
   })
 })

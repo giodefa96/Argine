@@ -33,8 +33,9 @@ the backend read API; a station selector switches between the three Seveso gauge
 ## Contract
 
 - Reads `GET /stations` and, per station, `GET /stations/{id}/observations?metric=level_m` and
-  `?metric=rain_mm` (`limit=2000`, defaults to the backend's last-30-days window). Requires
-  backend CORS to allow the frontend origin.
+  `?metric=rain_mm`, with `from` + `limit` derived from the **period selector** (24 ore /
+  7 giorni / 30 giorni): `limit = hours × 7` (10-minute cadence ≈ 6 points/hour, with
+  headroom), capped by the API's 10k. Requires backend CORS to allow the frontend origin.
 - Env: `VITE_API_URL` (build/runtime base URL of the backend).
 
 ## Testing
@@ -48,11 +49,14 @@ the backend read API; a station selector switches between the three Seveso gauge
 
 ## Status
 
-**Implemented** (observed level + observed rainfall overlay). Forecast overlay and the stations
-map come later.
+**Implemented** (observed level + observed rainfall overlay, period selector 24h/7g/30g).
+Forecast overlay comes later; the stations map is `features/map-view.md`.
 
 ## Open questions
 
-- Time-range selector / slider (the backend already supports `from`/`to`); add when needed.
-- Downsampling for long ranges (ties into backend continuous aggregates).
+- Periods beyond 30 days need **downsampling** (30 days of 10-minute data ≈ 4.3k points is
+  fine; a year is not — ties into backend continuous aggregates / `time_bucket`).
+- Negative levels (e.g. Paderno Dugnano ~−0.2 m) are genuine — the hydrometric zero is a
+  conventional reference and low flow sits below it. A zero-reference line on the chart
+  would make this self-explanatory.
 - Styling is minimal (plain CSS); Tailwind + layout polish is a later pass.
