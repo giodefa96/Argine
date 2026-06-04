@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, expect, test, vi } from 'vitest'
 import type { Station } from '../lib/api'
-import { createdMarkers } from '../test/maplibre-mock'
+import { createdMaps, createdMarkers } from '../test/maplibre-mock'
 import MapView from './MapView'
 
 // jsdom has no WebGL — see src/test/maplibre-mock.ts.
@@ -23,6 +23,7 @@ const stations = [station(1, 'Cantù Asnago'), station(2, 'Milano Niguarda')]
 
 beforeEach(() => {
   createdMarkers.length = 0
+  createdMaps.length = 0
 })
 
 test('renders the map container with one marker per station', () => {
@@ -49,4 +50,25 @@ test('markers are accessible buttons named after the station', () => {
   render(<MapView stations={stations} selectedId={null} onSelect={() => {}} />)
   expect(createdMarkers[0].getElement()).toHaveAttribute('aria-label', 'Stazione Cantù Asnago')
   expect(createdMarkers[0].getElement()).toHaveAttribute('role', 'button')
+})
+
+test('adds the PGRA hazard layers and the river line on load', () => {
+  render(<MapView stations={stations} selectedId={null} onSelect={() => {}} />)
+  act(() => createdMaps[0].fireLoad())
+  expect(createdMaps[0].layers).toEqual(['pgra-p1', 'pgra-p2', 'pgra-p3', 'seveso-river'])
+})
+
+test('the legend toggle hides and shows the hazard layers', () => {
+  render(<MapView stations={stations} selectedId={null} onSelect={() => {}} />)
+  act(() => createdMaps[0].fireLoad())
+  const toggle = screen.getByRole('checkbox', { name: /aree allagabili/i })
+  expect(toggle).toBeChecked()
+  expect(screen.getByText(/P3 — frequente/)).toBeInTheDocument()
+
+  fireEvent.click(toggle)
+  expect(createdMaps[0].setLayoutProperty).toHaveBeenCalledWith('pgra-p3', 'visibility', 'none')
+  expect(screen.queryByText(/P3 — frequente/)).not.toBeInTheDocument()
+
+  fireEvent.click(toggle)
+  expect(createdMaps[0].setLayoutProperty).toHaveBeenCalledWith('pgra-p3', 'visibility', 'visible')
 })

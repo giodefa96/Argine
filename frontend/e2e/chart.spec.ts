@@ -41,9 +41,12 @@ test('renders the Seveso map and level chart with data', async ({ page }) => {
 
   await page.goto('/')
 
-  // The map renders with one marker per station (markers are DOM elements, not canvas).
+  // The map renders with one marker per station (markers are DOM elements, not canvas)
+  // and the PGRA hazard legend with its toggle.
   await expect(page.getByLabel('Mappa del Seveso')).toBeVisible()
   await expect(page.locator('.maplibregl-marker')).toHaveCount(1)
+  await expect(page.getByRole('checkbox', { name: /aree allagabili/i })).toBeChecked()
+  await expect(page.getByText('P3 — frequente')).toBeVisible()
 
   // The station selector is populated from the API (options live inside a closed <select>,
   // so assert on the selected value rather than option visibility).
