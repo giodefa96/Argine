@@ -166,3 +166,54 @@ async fn observations_rejects_bad_params(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+#[sqlx::test]
+async fn observations_bucketed_averages_level_and_sums_rain(pool: PgPool) {
+    let s = domain::upsert_station(&pool, &station("3118", "Milano Niguarda"))
+        .await
+        .unwrap();
+    // Two points in hour 00 and one in hour 01, for both metrics.
+    for (ts, level, rain) in [
+        (datetime!(2026-06-01 00:10 UTC), 0.4, 2.0),
+        (datetime!(2026-06-01 00:50 UTC), 0.6, 3.0),
+        (datetime!(2026-06-01 01:10 UTC), 1.0, 1.0),
+    ] {
+        domain::upsert_observation(&pool, s.id, ts, Metric::LevelM, level)
+            .await
+            .unwrap();
+        domain::upsert_observation(&pool, s.id, ts, Metric::RainMm, rain)
+            .await
+            .unwrap();
+    }
+    let range = "from=2026-06-01T00:00:00Z&to=2026-06-01T02:00:00Z";
+
+    // Level is averaged per bucket: hour 00 → (0.4+0.6)/2 = 0.5.
+    let (status, body) = get(
+        &pool,
+        &format!("/stations/{}/observations?{range}&bucket=1h", s.id),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let arr = body.as_array().unwrap();
+    assert_eq!(arr.len(), 2);
+    assert_eq!(arr[0]["ts"], "2026-06-01T00:00:00Z"); // bucket start
+    assert_eq!(arr[0]["value"], 0.5);
+    assert_eq!(arr[1]["value"], 1.0);
+
+    // Rain is summed per bucket: hour 00 → 2+3 = 5 mm.
+    let (_, body) = get(
+        &pool,
+        &format!(
+            "/stations/{}/observations?{range}&bucket=1h&metric=rain_mm",
+            s.id
+        ),
+    )
+    .await;
+    let arr = body.as_array().unwrap();
+    assert_eq!(arr[0]["value"], 5.0);
+    assert_eq!(arr[1]["value"], 1.0);
+
+    // Unknown bucket → 400.
+    let (status, _) = get(&pool, &format!("/stations/{}/observations?bucket=5m", s.id)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}

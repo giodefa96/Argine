@@ -351,6 +351,39 @@ pub async fn observations_in_range(
     observations_in_range_limited(pool, station_id, metric, from, to, 100_000).await
 }
 
+/// Bucketed series for long ranges (TimescaleDB `time_bucket`): one point per `bucket`
+/// (a Postgres interval string from the API's allowlist, e.g. "1 hour" — never raw user
+/// input). Level (instantaneous) is **averaged**; rain (cumulative) is **summed**, so a
+/// day bucket reads as "total rain that day". `ts` is the bucket start.
+pub async fn observations_bucketed(
+    pool: &PgPool,
+    station_id: i64,
+    metric: Metric,
+    from: OffsetDateTime,
+    to: OffsetDateTime,
+    bucket: &str,
+    limit: i64,
+) -> sqlx::Result<Vec<Observation>> {
+    sqlx::query_as::<_, Observation>(
+        r#"
+        SELECT station_id, time_bucket($5::interval, ts) AS ts, metric,
+               CASE WHEN metric = 'rain_mm' THEN sum(value) ELSE avg(value) END AS value
+        FROM observation
+        WHERE station_id = $1 AND metric = $2 AND ts >= $3 AND ts <= $4
+        GROUP BY station_id, time_bucket($5::interval, ts), metric
+        ORDER BY ts LIMIT $6
+        "#,
+    )
+    .bind(station_id)
+    .bind(metric)
+    .bind(from)
+    .bind(to)
+    .bind(bucket)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}
+
 /// As [`observations_in_range`] but with an explicit row cap (bounded pagination for the API).
 pub async fn observations_in_range_limited(
     pool: &PgPool,

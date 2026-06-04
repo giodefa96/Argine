@@ -71,4 +71,22 @@ describe('StationLevel', () => {
     expect(first).toBeLessThan(2 * dayMs) // 24h window
     expect(widened).toBeGreaterThan(6 * dayMs) // 7-day window
   })
+
+  it('long periods request server-side buckets', async () => {
+    const buckets: (string | null)[] = []
+    server.use(
+      http.get('http://localhost:8080/stations/:id/observations', ({ request }) => {
+        buckets.push(new URL(request.url).searchParams.get('bucket'))
+        return HttpResponse.json(sampleObservations)
+      }),
+    )
+    renderWithClient(<StationLevel station={station} />)
+    await screen.findByText(/Ultimo livello/)
+    expect(buckets[0]).toBeNull() // 24h default = raw points
+
+    fireEvent.change(screen.getByRole('combobox', { name: /periodo/i }), {
+      target: { value: 'all' },
+    })
+    await waitFor(() => expect(buckets).toContain('1d'))
+  })
 })

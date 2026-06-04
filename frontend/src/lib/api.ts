@@ -39,6 +39,8 @@ export interface ObservationParams {
   to?: string
   limit?: number
   metric?: 'level_m' | 'rain_mm'
+  /** Server-side aggregation for long ranges: level averaged, rain summed per bucket. */
+  bucket?: '1h' | '6h' | '1d'
 }
 
 export function fetchObservations(
@@ -50,6 +52,7 @@ export function fetchObservations(
   if (params.to) q.set('to', params.to)
   if (params.limit != null) q.set('limit', String(params.limit))
   if (params.metric) q.set('metric', params.metric)
+  if (params.bucket) q.set('bucket', params.bucket)
   const qs = q.toString()
   return getJson<Observation[]>(`/stations/${stationId}/observations${qs ? `?${qs}` : ''}`)
 }
