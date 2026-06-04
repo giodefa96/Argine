@@ -15,6 +15,7 @@ same PR — docs drift is treated as a bug.
   - [`persistence.md`](./features/persistence.md)
   - [`domain-model.md`](./features/domain-model.md)
   - [`arpa-ingestion.md`](./features/arpa-ingestion.md)
+  - [`weather-ingestion.md`](./features/weather-ingestion.md)
   - [`read-api.md`](./features/read-api.md)
 
 ## Feature doc template

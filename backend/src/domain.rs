@@ -136,6 +136,18 @@ pub struct Observation {
     pub value: f64,
 }
 
+/// One forecast point: rain expected at `ts`, as issued by `model` at `run_ts`.
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+pub struct WeatherForecast {
+    pub station_id: i64,
+    #[serde(with = "time::serde::rfc3339")]
+    pub run_ts: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    pub ts: OffsetDateTime,
+    pub rain_mm: f64,
+    pub model: String,
+}
+
 /// Insert a station, or update it in place if `(source, external_id)` already exists.
 /// Idempotent — ingestion can call this on every poll without creating duplicates.
 pub async fn upsert_station(pool: &PgPool, s: &NewStation) -> sqlx::Result<Station> {
@@ -258,6 +270,56 @@ pub async fn upsert_observations(
         qb.build().execute(pool).await?;
     }
     Ok(rows.len())
+}
+
+/// Batch-upsert forecast points for one `(station, model, run_ts)` run, chunked like
+/// [`upsert_observations`]. Idempotent on `(station, model, run_ts, ts)` — re-ingesting
+/// the same run overwrites it; a new `run_ts` is kept as a separate run (for backtesting).
+/// Returns the number of input rows.
+pub async fn upsert_weather_forecasts(
+    pool: &PgPool,
+    station_id: i64,
+    model: &str,
+    run_ts: OffsetDateTime,
+    points: &[(OffsetDateTime, f64)],
+) -> sqlx::Result<usize> {
+    for chunk in points.chunks(1000) {
+        let mut qb = sqlx::QueryBuilder::new(
+            "INSERT INTO weather_forecast (station_id, run_ts, ts, rain_mm, model) ",
+        );
+        qb.push_values(chunk, |mut b, (ts, rain_mm)| {
+            b.push_bind(station_id)
+                .push_bind(run_ts)
+                .push_bind(*ts)
+                .push_bind(*rain_mm)
+                .push_bind(model);
+        });
+        qb.push(
+            " ON CONFLICT (station_id, model, run_ts, ts)
+              DO UPDATE SET rain_mm = EXCLUDED.rain_mm",
+        );
+        qb.build().execute(pool).await?;
+    }
+    Ok(points.len())
+}
+
+/// The latest forecast run for a station: every point of the most recent `run_ts`
+/// (any model), ordered by forecast hour. Empty if no run has been ingested yet.
+pub async fn latest_weather_forecast(
+    pool: &PgPool,
+    station_id: i64,
+) -> sqlx::Result<Vec<WeatherForecast>> {
+    sqlx::query_as::<_, WeatherForecast>(
+        r#"
+        SELECT station_id, run_ts, ts, rain_mm, model FROM weather_forecast
+        WHERE station_id = $1
+          AND run_ts = (SELECT max(run_ts) FROM weather_forecast WHERE station_id = $1)
+        ORDER BY ts
+        "#,
+    )
+    .bind(station_id)
+    .fetch_all(pool)
+    .await
 }
 
 /// A station's series for one metric over `[from, to]`, ordered by time. Capped at a

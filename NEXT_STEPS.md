@@ -24,34 +24,34 @@ flow: `git flow feature start <name>` → code **+** tests **+** `docs/features/
 - **Tests:** `sqlx::test` harness against an ephemeral DB; `/ready` integration test.
 - **Docs:** `backend/docs/features/persistence.md`.
 
-### 2. Domain model + repositories
+### 2. Domain model + repositories ✅ (PR #9 → `develop`)
 - **Goal:** persist the core entities.
 - **Scope:** migrations + types for `station`, `observation`, `threshold`; a thin repository
   layer with parameterized queries only.
 - **Tests:** repository CRUD via `sqlx::test`; threshold mapping.
 - **Docs:** `backend/docs/features/domain-model.md` + schema in `ARCHITECTURE.md`.
 
-### 3. ARPA hydrometry ingestion (Seveso)
+### 3. ARPA hydrometry ingestion (Seveso) ✅ (PR #11; observed rainfall in PR #14)
 - **Goal:** pull near-real-time level for the Seveso station.
 - **Scope:** scheduled job (`tokio-cron-scheduler`); ARPA Lombardia client (`reqwest`);
   normalize → `observation`. Pick the MVP station (open question in IDEAS.md §12).
 - **Tests:** parser/normalizer unit tests; HTTP mocked with **`wiremock`** (no real API in CI).
 - **Docs:** `backend/docs/features/arpa-ingestion.md`.
 
-### 4. Open-Meteo rain-forecast ingestion
+### 4. Open-Meteo rain-forecast ingestion ✅
 - **Goal:** forecast precipitation over the basin.
 - **Scope:** Open-Meteo client; store `weather_forecast`; basin defined as a point/bbox first.
 - **Tests:** client + normalizer with `wiremock` fixtures.
 - **Docs:** `backend/docs/features/weather-ingestion.md`.
 
-### 5. Read API
+### 5. Read API ✅ (PR #12 → `develop`)
 - **Goal:** expose data to the frontend.
 - **Scope:** `GET /stations`, `GET /stations/{id}`, `GET /stations/{id}/observations`
   (`?from&to`, bounded pagination, input validation).
 - **Tests:** integration tests via `oneshot` against a seeded test DB.
 - **Docs:** update API surface in `backend/docs/ARCHITECTURE.md`.
 
-### 6. Frontend: data layer + level chart
+### 6. Frontend: data layer + level chart ✅ (PR #13; rain/level correlation in PR #14)
 - **Goal:** first real view — the Seveso level over time.
 - **Scope:** **TanStack Query** client; **uPlot** time-series chart; basic layout.
 - **Tests:** Vitest + Testing Library with **MSW**-mocked API; one Playwright journey
