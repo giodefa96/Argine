@@ -66,13 +66,23 @@ flow: `git flow feature start <name>` → code **+** tests **+** `docs/features/
 - **Alert engine:** compare forecast vs thresholds → `alert`; SSE stream + **Telegram** bot.
 - **PWA + Web Push:** installable frontend, push notifications for alerts.
 
+## Near-term — data & QA
+- [ ] **ERA5 historical rain backfill** (Open-Meteo archive API): ARPA open data has **no
+      historical rain** — the history dataset is hydrometry-only and the recent one starts
+      Nov 2025. ERA5 reanalysis (hourly, by station coords, free) fills 2021→now for ML
+      training; the exact ARPA gauge CSVs need the manual request form if ever needed.
+- [ ] **QA tour with the Chrome MCP** (browser automation, planned 2026-06-05): drive the
+      real app end-to-end — map (markers, popup, PGRA toggle/legend), every chart period on
+      every station, forecast endpoint data, empty/error states — and file what falls out.
+
 ## Phase 2 — ML
 - Python training pipeline (XGBoost/LightGBM) → **ONNX** export → inference in Rust (`ort`/`tract`).
 - Backtesting on historical flood events.
 
 ## Phase 3 — spatial forecasting
 - DTM/LIDAR acquisition; offline **HAND** pipeline (Python) → flood-extent polygons per level.
-- MapLibre dynamic risk layer + time slider; official PGRA/PAI layers.
+- MapLibre dynamic risk layer + time slider. (Static **PGRA layers** already on the map ✅;
+  the station map itself ✅ — see `frontend/docs/features/map-view.md`.)
 
 ---
 
