@@ -171,11 +171,12 @@ impl ArpaClient {
         Ok(normalize(&rows, divisor))
     }
 
-    /// One page of the historical series for a sensor, ascending by time. Returns
+    /// One page of a dataset's series for a sensor, ascending by time. Returns
     /// `(raw_row_count, observations)`: the raw count drives backfill termination, since a
     /// page can be non-empty yet normalize to nothing (e.g. an outage of all-sentinel rows).
-    async fn fetch_history_page(
+    async fn fetch_page(
         &self,
+        dataset: &str,
         sensor_id: &str,
         offset: u32,
         divisor: f64,
@@ -183,7 +184,7 @@ impl ArpaClient {
         let (limit, offset) = (PAGE.to_string(), offset.to_string());
         let rows = self
             .get(
-                DATASET_HISTORY,
+                dataset,
                 &[
                     ("idsensore", sensor_id),
                     ("$order", "data ASC"),
@@ -250,11 +251,12 @@ pub async fn poll_once(pool: &PgPool, client: &ArpaClient) -> Result<usize, Inge
     Ok(total)
 }
 
-/// Page the full history of one sensor onto `station_id` under `metric`. Terminates on a
-/// raw-empty page. Returns the number stored.
+/// Page one dataset's full series for one sensor onto `station_id` under `metric`.
+/// Terminates on a raw-empty page. Returns the number stored.
 async fn backfill_sensor(
     pool: &PgPool,
     client: &ArpaClient,
+    dataset: &str,
     sensor_id: &str,
     station_id: i64,
     metric: Metric,
@@ -264,7 +266,7 @@ async fn backfill_sensor(
     let mut offset = 0;
     loop {
         let (raw, page) = client
-            .fetch_history_page(sensor_id, offset, divisor)
+            .fetch_page(dataset, sensor_id, offset, divisor)
             .await?;
         if raw == 0 {
             break; // no more rows (a page may be non-empty yet normalize to nothing, so
@@ -274,6 +276,7 @@ async fn backfill_sensor(
         offset += PAGE;
         tracing::info!(
             sensor = sensor_id,
+            dataset,
             ?metric,
             stored = total,
             "backfill progress"
@@ -282,32 +285,38 @@ async fn backfill_sensor(
     Ok(total)
 }
 
-/// One-shot historical backfill: page through the history dataset for every station's level
-/// and co-located rain. Heavy (years of 10-min data) — an operator step, not the poll path.
+/// One-shot historical backfill: page through **both** datasets (digitized history
+/// 2021→2025, then the recent one 2025→now) for every station's level and co-located rain,
+/// so the series is continuous up to the publication lag. Heavy (years of 10-min data) —
+/// an operator step, not the poll path. Idempotent: re-running upserts the same points.
 pub async fn backfill(pool: &PgPool, client: &ArpaClient) -> Result<usize, IngestError> {
     let map = seed_stations(pool).await?;
     let mut total = 0;
     for s in SEVESO_STATIONS {
         let station_id = map[s.sensor_id];
-        total += backfill_sensor(
-            pool,
-            client,
-            s.sensor_id,
-            station_id,
-            Metric::LevelM,
-            LEVEL_DIVISOR,
-        )
-        .await?;
-        if let Some(rain_id) = s.rain_sensor_id {
+        for dataset in [DATASET_HISTORY, DATASET_LATEST] {
             total += backfill_sensor(
                 pool,
                 client,
-                rain_id,
+                dataset,
+                s.sensor_id,
                 station_id,
-                Metric::RainMm,
-                RAIN_DIVISOR,
+                Metric::LevelM,
+                LEVEL_DIVISOR,
             )
             .await?;
+            if let Some(rain_id) = s.rain_sensor_id {
+                total += backfill_sensor(
+                    pool,
+                    client,
+                    dataset,
+                    rain_id,
+                    station_id,
+                    Metric::RainMm,
+                    RAIN_DIVISOR,
+                )
+                .await?;
+            }
         }
     }
     Ok(total)

@@ -26,9 +26,11 @@ the frontend time-slider / ML training).
   batched via `domain::upsert_observations` (one query per ≤1000 rows).
 - **Scheduler:** a plain `tokio::time::interval` background task (not `tokio-cron-scheduler`) —
   hourly cadence needs nothing more; one fewer dependency. Swap in cron later if needed.
-- **Backfill:** pages the history dataset (`$limit`/`$offset`, 1000/page) per sensor until a
-  **raw-empty** page (a full page can normalize to nothing during an all-sentinel outage, so it
-  terminates on the raw row count, not the normalized result). Both level and rain are backfilled.
+- **Backfill:** pages **both datasets** per sensor — digitized history (2021→~2025-01), then
+  the recent one (2025→now) — so the series is continuous up to the publication lag
+  (`$limit`/`$offset`, 1000/page) until a **raw-empty** page (a full page can normalize to
+  nothing during an all-sentinel outage, so it terminates on the raw row count, not the
+  normalized result). Both level and rain are backfilled; idempotent re-runs upsert in place.
 
 ## Files / code
 
@@ -62,5 +64,4 @@ see [`weather-ingestion.md`](./weather-ingestion.md) (ERA5 archive still open th
   is dropped; `stato` is parsed but unused.)
 - Real-time: open-data lags ~18 h for the lowland network. A faster feed needs a direct ARPA
   arrangement (see DATA_SOURCES.md) before live alerting is meaningful.
-- Backfill reads the history dataset only (ends ~2025-01); wire the recent dataset's full range too
-  when needed. Niguarda's rain gauge (4065 Cinisello) is nearby, not exactly co-located.
+- Niguarda's rain gauge (4065 Cinisello) is nearby, not exactly co-located.
