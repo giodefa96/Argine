@@ -5,6 +5,7 @@ pub mod api;
 pub mod arpa;
 pub mod config;
 pub mod domain;
+pub mod forecast;
 pub mod open_meteo;
 
 use axum::extract::State;
@@ -34,6 +35,7 @@ pub fn router(state: AppState, config: &Config) -> Router {
             "/stations/{id}/observations",
             get(api::station_observations),
         )
+        .route("/stations/{id}/forecast", get(api::station_forecast))
         .layer(cors_layer(config))
         .layer(TraceLayer::new_for_http())
         .with_state(state)

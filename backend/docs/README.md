@@ -17,6 +17,7 @@ same PR — docs drift is treated as a bug.
   - [`arpa-ingestion.md`](./features/arpa-ingestion.md)
   - [`weather-ingestion.md`](./features/weather-ingestion.md)
   - [`read-api.md`](./features/read-api.md)
+  - [`baseline-forecast.md`](./features/baseline-forecast.md)
 
 ## Feature doc template
 Each `features/<name>.md` should cover:
