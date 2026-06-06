@@ -30,3 +30,43 @@ select {
   padding: 0.25rem 0.5rem;
   font-size: 1rem;
 }
+
+.map-wrap {
+  position: relative;
+}
+
+.map-view {
+  height: 420px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.map-legend {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 1;
+  padding: 0.4rem 0.6rem;
+  background: rgb(255 255 255 / 90%);
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.map-legend label {
+  margin: 0;
+}
+
+.map-legend ul {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend-chip {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 2px;
+  opacity: 0.7;
+}

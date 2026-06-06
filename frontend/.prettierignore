@@ -3,3 +3,5 @@ coverage
 playwright-report
 test-results
 pnpm-lock.yaml
+src/assets/seveso-river.json
+src/assets/seveso-pgra.json

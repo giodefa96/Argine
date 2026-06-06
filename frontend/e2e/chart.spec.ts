@@ -1,8 +1,12 @@
 import { expect, test } from '@playwright/test'
 
-// Critical journey: the level chart renders with data. The backend is mocked at the
-// network layer (Playwright route) so the E2E needs no running API.
-test('renders the Seveso level chart with data', async ({ page }) => {
+// Critical journey: the map + level chart render with data. The backend is mocked at the
+// network layer (Playwright route) so the E2E needs no running API; OSM tile requests are
+// stubbed too — no real external call in CI (CLAUDE.md).
+test('renders the Seveso map and level chart with data', async ({ page }) => {
+  await page.route('https://tile.openstreetmap.org/**', (route) =>
+    route.fulfill({ status: 204, body: '' }),
+  )
   await page.route('**/stations', (route) =>
     route.fulfill({
       json: [
@@ -36,6 +40,13 @@ test('renders the Seveso level chart with data', async ({ page }) => {
   })
 
   await page.goto('/')
+
+  // The map renders with one marker per station (markers are DOM elements, not canvas)
+  // and the PGRA hazard legend with its toggle.
+  await expect(page.getByLabel('Mappa del Seveso')).toBeVisible()
+  await expect(page.locator('.maplibregl-marker')).toHaveCount(1)
+  await expect(page.getByRole('checkbox', { name: /aree allagabili/i })).toBeChecked()
+  await expect(page.getByText('P3 — frequente')).toBeVisible()
 
   // The station selector is populated from the API (options live inside a closed <select>,
   // so assert on the selected value rather than option visibility).

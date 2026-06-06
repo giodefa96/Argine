@@ -83,6 +83,7 @@ pub struct ObsQuery {
     to: Option<String>,
     limit: Option<i64>,
     metric: Option<String>,
+    bucket: Option<String>,
 }
 
 fn parse_ts(s: &str) -> Result<OffsetDateTime, ApiError> {
@@ -90,10 +91,12 @@ fn parse_ts(s: &str) -> Result<OffsetDateTime, ApiError> {
         .map_err(|_| ApiError::BadRequest("invalid timestamp (RFC 3339)"))
 }
 
-/// `GET /stations/{id}/observations?from&to&limit&metric` — a station's series.
+/// `GET /stations/{id}/observations?from&to&limit&metric&bucket` — a station's series.
 ///
 /// Defaults: `metric=level_m`, last 30 days, `limit=1000` (capped at 10000). Times are
-/// RFC 3339. 404 if the station is unknown, 400 on a bad param or `from > to`.
+/// RFC 3339. `bucket` (optional: `1h` | `6h` | `1d`) aggregates per bucket for long
+/// ranges — level averaged, rain summed. 404 if the station is unknown, 400 on a bad
+/// param or `from > to`.
 pub async fn station_observations(
     State(s): State<AppState>,
     Path(id): Path<i64>,
@@ -109,6 +112,15 @@ pub async fn station_observations(
         Some(_) => return Err(ApiError::BadRequest("invalid metric")),
     };
 
+    // Strict allowlist mapped to fixed interval strings — user input never reaches SQL.
+    let bucket = match q.bucket.as_deref() {
+        None => None,
+        Some("1h") => Some("1 hour"),
+        Some("6h") => Some("6 hours"),
+        Some("1d") => Some("1 day"),
+        Some(_) => return Err(ApiError::BadRequest("invalid bucket (1h, 6h or 1d)")),
+    };
+
     let to = match q.to {
         Some(ref s) => parse_ts(s)?,
         None => OffsetDateTime::now_utc(),
@@ -122,7 +134,12 @@ pub async fn station_observations(
     }
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
 
-    let obs = domain::observations_in_range_limited(&s.pool, id, metric, from, to, limit).await?;
+    let obs = match bucket {
+        Some(interval) => {
+            domain::observations_bucketed(&s.pool, id, metric, from, to, interval, limit).await?
+        }
+        None => domain::observations_in_range_limited(&s.pool, id, metric, from, to, limit).await?,
+    };
     Ok(Json(obs))
 }
 

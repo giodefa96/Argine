@@ -74,11 +74,12 @@ async fn poll_once_stores_level_and_rain_on_the_same_station(pool: PgPool) {
 }
 
 #[sqlx::test]
-async fn backfill_pages_past_sentinel_only_page_until_raw_empty(pool: PgPool) {
+async fn backfill_pages_both_datasets_past_sentinel_only_page_until_raw_empty(pool: PgPool) {
     let server = MockServer::start().await;
-    // For every sensor (level + rain): page 0 normalizes to nothing (all-sentinel outage),
-    // page 1000 has a valid row, page 2000 is the real (raw-empty) end. Backfill must NOT
-    // stop at page 0 just because it normalized empty — it terminates on the raw count.
+    // For every sensor (level + rain), on the HISTORY dataset: page 0 normalizes to nothing
+    // (all-sentinel outage), page 1000 has a valid row, page 2000 is the real (raw-empty)
+    // end. Backfill must NOT stop at page 0 just because it normalized empty — it
+    // terminates on the raw count.
     for id in all_sensor_ids() {
         Mock::given(method("GET"))
             .and(path("/3e8b-w7ay.json"))
@@ -109,13 +110,34 @@ async fn backfill_pages_past_sentinel_only_page_until_raw_empty(pool: PgPool) {
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
         .mount(&server)
         .await;
+    // The RECENT dataset (2025→now) is paged too — one valid row on page 0, empty page 1000
+    // — so the backfilled series continues past the history dataset's ~2025-01 end.
+    for id in all_sensor_ids() {
+        Mock::given(method("GET"))
+            .and(path("/647i-nhxk.json"))
+            .and(query_param("idsensore", id))
+            .and(query_param("$offset", "0"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(one_row(
+                id,
+                "2026-06-01T00:00:00.000",
+                "80",
+            )))
+            .mount(&server)
+            .await;
+    }
+    Mock::given(method("GET"))
+        .and(path("/647i-nhxk.json"))
+        .and(query_param("$offset", "1000"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+        .mount(&server)
+        .await;
     let client = ArpaClient::new(server.uri());
 
-    // 3 stations × (level + rain), one valid row each = 6.
+    // 3 stations × (level + rain) × (1 history row + 1 recent row) = 12.
     let stored = arpa::backfill(&pool, &client).await.unwrap();
     assert_eq!(
-        stored, 6,
-        "the valid row on page 1000 must survive the empty page 0, for both metrics"
+        stored, 12,
+        "one history row (surviving the sentinel-only page) + one recent row, per metric"
     );
 
     let stations = domain::list_stations(&pool).await.unwrap();
@@ -123,11 +145,12 @@ async fn backfill_pages_past_sentinel_only_page_until_raw_empty(pool: PgPool) {
     let level = domain::observations_in_range(&pool, cantu.id, Metric::LevelM, WIDE.0, WIDE.1)
         .await
         .unwrap();
-    assert_eq!(level.len(), 1);
-    assert_eq!(level[0].value, 0.5); // 50 cm
+    assert_eq!(level.len(), 2);
+    assert_eq!(level[0].value, 0.5); // 50 cm (history, 2021)
+    assert_eq!(level[1].value, 0.8); // 80 cm (recent, 2026)
     let rain = domain::observations_in_range(&pool, cantu.id, Metric::RainMm, WIDE.0, WIDE.1)
         .await
         .unwrap();
-    assert_eq!(rain.len(), 1);
+    assert_eq!(rain.len(), 2);
     assert_eq!(rain[0].value, 50.0); // 50 mm
 }

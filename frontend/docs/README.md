@@ -13,6 +13,7 @@ same PR — docs drift is treated as a bug.
 - `features/` — one document per feature:
   - [`app-shell.md`](./features/app-shell.md)
   - [`level-chart.md`](./features/level-chart.md)
+  - [`map-view.md`](./features/map-view.md)
 
 ## Feature doc template
 
