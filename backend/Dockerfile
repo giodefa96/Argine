@@ -19,7 +19,7 @@ RUN touch src/main.rs && cargo build --release --locked
 
 # --- Runtime stage -----------------------------------------------------------
 # distroless: no shell, no package manager, runs as a non-root user.
-FROM gcr.io/distroless/cc-debian12:nonroot@sha256:bd2899c12b335c827750ccf2359879eab09c09b206023dcebea408947d54127c
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:b0ae8e989418b458e0f25489bc3be523718938a2b70864cc0f6a00af1ddbd985
 WORKDIR /app
 COPY --from=builder /app/target/release/argine-backend /usr/local/bin/argine-backend
 USER nonroot
