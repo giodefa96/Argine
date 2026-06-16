@@ -2,7 +2,7 @@
 
 # --- Build stage -------------------------------------------------------------
 # Pinned by digest for reproducible builds (SECURITY.md §10); kept current by Dependabot.
-FROM rust:1-slim@sha256:26abcef3d79b8d890c4ceb17093154573e1f6479cf6dd7c1450043b8458350f6 AS builder
+FROM rust:1-slim@sha256:3b05f7c617a200c41c3506097f0d15fc193a1c93bfd8f141007b47cac8f95d3c AS builder
 WORKDIR /app
 
 # Cache dependencies separately from source for faster rebuilds.
